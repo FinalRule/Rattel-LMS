@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 
 const authSchema = z.object({
@@ -14,6 +15,7 @@ const authSchema = z.object({
   password: z.string().min(6, "Password must be at least 6 characters"),
   email: z.string().email("Invalid email address").optional().or(z.literal("")),
   fullName: z.string().min(2, "Full name must be at least 2 characters").optional().or(z.literal("")),
+  role: z.enum(["admin", "teacher", "student"]).optional(),
 });
 
 export default function AuthPage() {
@@ -28,6 +30,7 @@ export default function AuthPage() {
       password: "",
       email: "",
       fullName: "",
+      role: "student",
     },
   });
 
@@ -52,7 +55,11 @@ export default function AuthPage() {
           return;
         }
 
-        const result = await register(data);
+        const result = await register({
+          ...data,
+          role: data.role || "student", // Default to student if not specified
+        });
+
         if (!result.ok) {
           toast({
             title: "Error",
@@ -134,6 +141,32 @@ export default function AuthPage() {
                         <FormControl>
                           <Input {...field} />
                         </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="role"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Role</FormLabel>
+                        <Select 
+                          onValueChange={field.onChange} 
+                          defaultValue={field.value}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select a role" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="student">Student</SelectItem>
+                            <SelectItem value="teacher">Teacher</SelectItem>
+                            <SelectItem value="admin">Administrator</SelectItem>
+                          </SelectContent>
+                        </Select>
                         <FormMessage />
                       </FormItem>
                     )}
