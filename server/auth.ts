@@ -5,7 +5,8 @@ import session from "express-session";
 import createMemoryStore from "memorystore";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
-import { users, type User } from "@db/schema";
+import { users } from "@db/schema";
+import type { User } from "@db/schema";
 import { db } from "@db";
 import { eq } from "drizzle-orm";
 
@@ -29,10 +30,15 @@ const crypto = {
   },
 };
 
+// Extend express user object with our schema
 declare global {
   namespace Express {
-    // eslint-disable-next-line @typescript-eslint/no-empty-interface
-    interface User extends User {}
+    interface User extends Omit<User, keyof User> {
+      id: number;
+      username: string;
+      role: string;
+      email: string;
+    }
   }
 }
 
@@ -101,15 +107,13 @@ export function setupAuth(app: Express) {
 
   app.post("/api/register", async (req, res, next) => {
     try {
-      const result = insertUserSchema.safeParse(req.body);
-      if (!result.success) {
-        return res
-          .status(400)
-          .send("Invalid input: " + result.error.issues.map(i => i.message).join(", "));
+      const { username, password, email, fullName } = req.body;
+
+      if (!username || !password || !email || !fullName) {
+        return res.status(400).send("All fields are required");
       }
 
-      const { username, password, email, fullName, role = "student", timezone = "UTC" } = result.data;
-
+      // Check if user already exists
       const [existingUser] = await db
         .select()
         .from(users)
@@ -120,8 +124,10 @@ export function setupAuth(app: Express) {
         return res.status(400).send("Username already exists");
       }
 
+      // Hash the password
       const hashedPassword = await crypto.hash(password);
 
+      // Create the new user
       const [newUser] = await db
         .insert(users)
         .values({
@@ -129,12 +135,13 @@ export function setupAuth(app: Express) {
           password: hashedPassword,
           email,
           fullName,
-          role,
-          timezone,
+          role: "student", // Default role
+          timezone: "UTC", // Default timezone
           active: true,
         })
         .returning();
 
+      // Log the user in after registration
       req.login(newUser, (err) => {
         if (err) {
           return next(err);
@@ -155,11 +162,10 @@ export function setupAuth(app: Express) {
   });
 
   app.post("/api/login", (req, res, next) => {
-    const result = insertUserSchema.safeParse(req.body);
-    if (!result.success) {
-      return res
-        .status(400)
-        .send("Invalid input: " + result.error.issues.map(i => i.message).join(", "));
+    const { username, password } = req.body;
+
+    if (!username || !password) {
+      return res.status(400).send("Username and password are required");
     }
 
     const cb = (err: any, user: Express.User, info: IVerifyOptions) => {
