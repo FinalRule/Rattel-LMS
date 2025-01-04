@@ -7,10 +7,10 @@ import {
   subjects,
   classes,
   sessions,
-  resources,
   payments,
+  sessionAttendance,
 } from "@db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 
 export function registerRoutes(app: Express): Server {
   // Auth routes
@@ -49,28 +49,27 @@ export function registerRoutes(app: Express): Server {
     res.json(session[0]);
   });
 
+  // Session Attendance
   app.patch("/api/sessions/:id/attendance", async (req, res) => {
     const { id } = req.params;
-    const { studentAttendance, teacherAttendance } = req.body;
-    
-    const updated = await db
-      .update(sessions)
-      .set({ studentAttendance, teacherAttendance })
-      .where(eq(sessions.id, parseInt(id)))
+    const { userId, status, joinTime, leaveTime } = req.body;
+
+    const attendance = await db
+      .insert(sessionAttendance)
+      .values({
+        sessionId: id,
+        userId,
+        status,
+        joinTime,
+        leaveTime
+      })
+      .onConflictDoUpdate({
+        target: [sessionAttendance.sessionId, sessionAttendance.userId],
+        set: { status, joinTime, leaveTime }
+      })
       .returning();
-      
-    res.json(updated[0]);
-  });
 
-  // Resources
-  app.get("/api/resources", async (req, res) => {
-    const allResources = await db.select().from(resources);
-    res.json(allResources);
-  });
-
-  app.post("/api/resources", async (req, res) => {
-    const resource = await db.insert(resources).values(req.body).returning();
-    res.json(resource[0]);
+    res.json(attendance[0]);
   });
 
   // Payments
@@ -88,11 +87,12 @@ export function registerRoutes(app: Express): Server {
   app.get("/api/analytics/attendance", async (req, res) => {
     const attendanceStats = await db
       .select({
-        total: sessions.id,
-        present: sessions.studentAttendance,
-        absent: sessions.studentAttendance,
+        sessionId: sessionAttendance.sessionId,
+        status: sessionAttendance.status,
+        totalStudents: db.fn.count(sessionAttendance.userId)
       })
-      .from(sessions);
+      .from(sessionAttendance)
+      .groupBy(sessionAttendance.sessionId, sessionAttendance.status);
 
     res.json(attendanceStats);
   });
@@ -103,6 +103,7 @@ export function registerRoutes(app: Express): Server {
         totalAmount: payments.amount,
         currency: payments.currency,
         status: payments.status,
+        type: payments.paymentType
       })
       .from(payments);
 

@@ -1,153 +1,240 @@
 import { 
   pgTable, 
   text, 
-  serial, 
-  integer, 
-  boolean, 
+  uuid, 
   timestamp, 
-  decimal, 
-  json, 
+  boolean,
   date,
-  time 
+  decimal,
+  integer,
+  jsonb,
+  primaryKey
 } from "drizzle-orm/pg-core";
-import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { relations } from "drizzle-orm";
+import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 
+// Enum types
+export const userRoles = ["admin", "teacher", "student"] as const;
+export const classStatuses = ["active", "paused", "completed", "cancelled"] as const;
+export const sessionStatuses = ["scheduled", "in_progress", "completed", "cancelled", "rescheduled"] as const;
+export const attendanceStatuses = ["present", "absent", "late"] as const;
+export const paymentStatuses = ["pending", "completed", "failed", "refunded"] as const;
+export const paymentTypes = ["student_payment", "teacher_payout"] as const;
+
+// Base users table
 export const users = pgTable("users", {
-  id: serial("id").primaryKey(),
-  username: text("username").unique().notNull(),
-  password: text("password").notNull(),
-  fullName: text("full_name").notNull(),
+  id: uuid("id").defaultRandom().primaryKey(),
   email: text("email").unique().notNull(),
-  role: text("role", { enum: ["admin", "teacher", "student"] }).notNull(),
+  password: text("password_hash").notNull(),  // Changed to match SQL schema
+  role: text("role", { enum: userRoles }).notNull(),
+  fullName: text("full_name").notNull(),
+  dateOfBirth: date("date_of_birth"),
+  gender: text("gender"),
   phone: text("phone"),
   whatsapp: text("whatsapp"),
   timezone: text("timezone").notNull(),
-  bio: text("bio"),
-  dateOfBirth: date("date_of_birth"),
-  active: boolean("active").default(true),
-  preferences: json("preferences"),
-  createdAt: timestamp("created_at").defaultNow()
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+  deletedAt: timestamp("deleted_at", { withTimezone: true })
 });
 
+// Teachers extension
+export const teachers = pgTable("teachers", {
+  userId: uuid("user_id").references(() => users.id).primaryKey(),
+  bio: text("bio"),
+  cvFileUrl: text("cv_file_url"),
+  residenceCity: text("residence_city"),
+  paymentMethod: jsonb("payment_method"),
+  baseSalaryPerHour: decimal("base_salary_per_hour", { precision: 10, scale: 2 }),
+  googleAccount: text("google_account"),
+  availabilitySchedule: jsonb("availability_schedule"),
+  bufferTimePreference: integer("buffer_time_preference"),
+  notes: text("notes"),
+  rating: decimal("rating", { precision: 3, scale: 2 })
+});
+
+// Students extension
+export const students = pgTable("students", {
+  userId: uuid("user_id").references(() => users.id).primaryKey(),
+  nationality: text("nationality"),
+  countryOfResidence: text("country_of_residence"),
+  parentName: text("parent_name"),
+  paymentMethod: jsonb("payment_method"),
+  learningGoals: text("learning_goals"),
+  preferredSessionDays: text("preferred_session_days").array(),
+  notes: text("notes"),
+  emergencyContact: jsonb("emergency_contact")
+});
+
+// Subjects
 export const subjects = pgTable("subjects", {
-  id: serial("id").primaryKey(),
+  id: uuid("id").defaultRandom().primaryKey(),
   name: text("name").notNull(),
   details: text("details"),
   category: text("category"),
   difficultyLevel: text("difficulty_level"),
-  availableDurations: json("available_durations"),
+  availableDurations: integer("available_durations").array(),
   sessionsPerMonth: integer("sessions_per_month"),
-  prerequisites: json("prerequisites"),
   defaultBufferTime: integer("default_buffer_time"),
-  active: boolean("active").default(true),
-  createdAt: timestamp("created_at").defaultNow()
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow()
 });
 
+// Teacher-Subject relationship
+export const teacherSubjects = pgTable("teacher_subjects", {
+  teacherId: uuid("teacher_id").references(() => teachers.userId),
+  subjectId: uuid("subject_id").references(() => subjects.id)
+}, (table) => ({
+  pk: primaryKey(table.teacherId, table.subjectId)
+}));
+
+// Price Plans
+export const pricePlans = pgTable("price_plans", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  subjectId: uuid("subject_id").references(() => subjects.id),
+  name: text("name").notNull(),
+  durationPerSession: integer("duration_per_session").notNull(),
+  sessionsPerMonth: integer("sessions_per_month").notNull(),
+  monthlyFee: decimal("monthly_fee", { precision: 10, scale: 2 }).notNull(),
+  currency: text("currency").notNull(),
+  promotionalPrice: decimal("promotional_price", { precision: 10, scale: 2 }),
+  promotionValidUntil: timestamp("promotion_valid_until", { withTimezone: true }),
+  minimumCommitment: integer("minimum_commitment"),
+  isTrialEligible: boolean("is_trial_eligible").default(false),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow()
+});
+
+// Classes
 export const classes = pgTable("classes", {
-  id: serial("id").primaryKey(),
-  subjectId: integer("subject_id").references(() => subjects.id),
-  teacherId: integer("teacher_id").references(() => users.id),
+  id: uuid("id").defaultRandom().primaryKey(),
+  subjectId: uuid("subject_id").references(() => subjects.id),
+  teacherId: uuid("teacher_id").references(() => teachers.userId),
+  pricePlanId: uuid("price_plan_id").references(() => pricePlans.id),
+  name: text("name"),
   startDate: date("start_date").notNull(),
   defaultDuration: integer("default_duration").notNull(),
-  weekDays: json("week_days"),
-  schedule: json("schedule"),
+  schedule: jsonb("schedule").notNull(),
   bufferTime: integer("buffer_time"),
-  monthlyPrice: decimal("monthly_price", { precision: 10, scale: 2 }),
-  currency: text("currency"),
-  teacherSalaryRate: decimal("teacher_salary_rate", { precision: 10, scale: 2 }),
-  status: text("status").default("active"),
-  createdAt: timestamp("created_at").defaultNow()
+  monthlyPrice: decimal("monthly_price", { precision: 10, scale: 2 }).notNull(),
+  currency: text("currency").notNull(),
+  teacherHourlyRate: decimal("teacher_hourly_rate", { precision: 10, scale: 2 }).notNull(),
+  status: text("status", { enum: classStatuses }).default("active"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow()
 });
 
+// Class Enrollments
+export const classEnrollments = pgTable("class_enrollments", {
+  classId: uuid("class_id").references(() => classes.id),
+  studentId: uuid("student_id").references(() => students.userId),
+  joinedAt: timestamp("joined_at", { withTimezone: true }).defaultNow(),
+  leftAt: timestamp("left_at", { withTimezone: true })
+}, (table) => ({
+  pk: primaryKey(table.classId, table.studentId)
+}));
+
+// Sessions
 export const sessions = pgTable("sessions", {
-  id: serial("id").primaryKey(),
-  classId: integer("class_id").references(() => classes.id),
-  dateTime: timestamp("date_time").notNull(),
-  googleMeetLink: text("google_meet_link"),
-  studentAttendance: text("student_attendance"),
-  teacherAttendance: text("teacher_attendance"),
-  plannedDuration: integer("planned_duration"),
+  id: uuid("id").defaultRandom().primaryKey(),
+  classId: uuid("class_id").references(() => classes.id),
+  sessionNumber: integer("session_number").notNull(),
+  startTime: timestamp("start_time", { withTimezone: true }).notNull(),
+  plannedDuration: integer("planned_duration").notNull(),
   actualDuration: integer("actual_duration"),
+  googleMeetLink: text("google_meet_link"),
   bufferTimeBefore: integer("buffer_time_before"),
   bufferTimeAfter: integer("buffer_time_after"),
-  status: text("status"),
+  status: text("status", { enum: sessionStatuses }).default("scheduled"),
+  rescheduledFrom: uuid("rescheduled_from").references(() => sessions.id),
+  cancellationReason: text("cancellation_reason"),
+  recordingUrl: text("recording_url"),
   teacherNotes: text("teacher_notes"),
   studentNotes: text("student_notes"),
-  studentPoints: integer("student_points"),
-  makeupSession: boolean("makeup_session").default(false),
-  createdAt: timestamp("created_at").defaultNow()
+  studentPoints: integer("student_points"), // Removed check constraint as it's not supported
+  isMakeupSession: boolean("is_makeup_session").default(false),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow()
 });
 
-export const resources = pgTable("resources", {
-  id: serial("id").primaryKey(),
-  ownerId: integer("owner_id").references(() => users.id),
-  title: text("title").notNull(),
-  type: text("type").notNull(),
-  content: text("content").notNull(),
-  sharedWith: json("shared_with"),
-  status: text("status").default("active"),
-  createdAt: timestamp("created_at").defaultNow()
-});
+// Session Attendance
+export const sessionAttendance = pgTable("session_attendance", {
+  sessionId: uuid("session_id").references(() => sessions.id),
+  userId: uuid("user_id").references(() => users.id),
+  status: text("status", { enum: attendanceStatuses }),
+  joinTime: timestamp("join_time", { withTimezone: true }),
+  leaveTime: timestamp("leave_time", { withTimezone: true })
+}, (table) => ({
+  pk: primaryKey(table.sessionId, table.userId)
+}));
 
+// Payments
 export const payments = pgTable("payments", {
-  id: serial("id").primaryKey(),
-  userId: integer("user_id").references(() => users.id),
-  userType: text("user_type").notNull(),
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").references(() => users.id),
+  paymentType: text("payment_type", { enum: paymentTypes }).notNull(),
   amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
   currency: text("currency").notNull(),
   exchangeRate: decimal("exchange_rate", { precision: 10, scale: 4 }),
-  status: text("status").notNull(),
-  paymentMethod: text("payment_method"),
-  reference: text("reference"),
-  paymentDate: timestamp("payment_date"),
-  createdAt: timestamp("created_at").defaultNow()
+  status: text("status", { enum: paymentStatuses }).default("pending"),
+  paymentMethod: jsonb("payment_method"),
+  transactionReference: text("transaction_reference"),
+  invoiceNumber: text("invoice_number"),
+  month: integer("month"),
+  year: integer("year"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  completedAt: timestamp("completed_at", { withTimezone: true })
 });
 
 // Relations
 export const userRelations = relations(users, ({ many }) => ({
-  teachingClasses: many(classes, { relationName: "teacher" }),
-  ownedResources: many(resources)
+  sessions: many(sessionAttendance),
+  payments: many(payments)
+}));
+
+export const teacherRelations = relations(teachers, ({ one, many }) => ({
+  user: one(users, {
+    fields: [teachers.userId],
+    references: [users.id]
+  }),
+  subjects: many(teacherSubjects),
+  classes: many(classes, { relationName: "teacher" })
 }));
 
 export const subjectRelations = relations(subjects, ({ many }) => ({
-  classes: many(classes)
+  teachers: many(teacherSubjects),
+  classes: many(classes),
+  pricePlans: many(pricePlans)
 }));
 
 export const classRelations = relations(classes, ({ one, many }) => ({
   subject: one(subjects, {
     fields: [classes.subjectId],
-    references: [subjects.id],
+    references: [subjects.id]
   }),
-  teacher: one(users, {
+  teacher: one(teachers, {
     fields: [classes.teacherId],
-    references: [users.id],
+    references: [teachers.userId]
   }),
+  pricePlan: one(pricePlans, {
+    fields: [classes.pricePlanId],
+    references: [pricePlans.id]
+  }),
+  students: many(classEnrollments),
   sessions: many(sessions)
 }));
-
-// Schemas
-export const insertUserSchema = createInsertSchema(users);
-export const selectUserSchema = createSelectSchema(users);
-
-export const insertSubjectSchema = createInsertSchema(subjects);
-export const selectSubjectSchema = createSelectSchema(subjects);
-
-export const insertClassSchema = createInsertSchema(classes);
-export const selectClassSchema = createSelectSchema(classes);
-
-export const insertSessionSchema = createInsertSchema(sessions);
-export const selectSessionSchema = createSelectSchema(sessions);
-
-export const insertResourceSchema = createInsertSchema(resources);
-export const selectResourceSchema = createSelectSchema(resources);
-
-export const insertPaymentSchema = createInsertSchema(payments);
-export const selectPaymentSchema = createSelectSchema(payments);
 
 // Types
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
+
+export type Teacher = typeof teachers.$inferSelect;
+export type NewTeacher = typeof teachers.$inferInsert;
+
+export type Student = typeof students.$inferSelect;
+export type NewStudent = typeof students.$inferInsert;
 
 export type Subject = typeof subjects.$inferSelect;
 export type NewSubject = typeof subjects.$inferInsert;
@@ -158,8 +245,27 @@ export type NewClass = typeof classes.$inferInsert;
 export type Session = typeof sessions.$inferSelect;
 export type NewSession = typeof sessions.$inferInsert;
 
-export type Resource = typeof resources.$inferSelect;
-export type NewResource = typeof resources.$inferInsert;
-
 export type Payment = typeof payments.$inferSelect;
 export type NewPayment = typeof payments.$inferInsert;
+
+// Schemas
+export const insertUserSchema = createInsertSchema(users);
+export const selectUserSchema = createSelectSchema(users);
+
+export const insertTeacherSchema = createInsertSchema(teachers);
+export const selectTeacherSchema = createSelectSchema(teachers);
+
+export const insertStudentSchema = createInsertSchema(students);
+export const selectStudentSchema = createSelectSchema(students);
+
+export const insertSubjectSchema = createInsertSchema(subjects);
+export const selectSubjectSchema = createSelectSchema(subjects);
+
+export const insertClassSchema = createInsertSchema(classes);
+export const selectClassSchema = createSelectSchema(classes);
+
+export const insertSessionSchema = createInsertSchema(sessions);
+export const selectSessionSchema = createSelectSchema(sessions);
+
+export const insertPaymentSchema = createInsertSchema(payments);
+export const selectPaymentSchema = createSelectSchema(payments);
