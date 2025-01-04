@@ -16,15 +16,72 @@ export function registerRoutes(app: Express): Server {
   // Auth routes
   setupAuth(app);
 
+  // Middleware to check if user is authenticated and is admin
+  const requireAdmin = (req: any, res: any, next: any) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).send("Not authenticated");
+    }
+    if (req.user.role !== "admin") {
+      return res.status(403).send("Not authorized");
+    }
+    next();
+  };
+
   // Subjects
   app.get("/api/subjects", async (req, res) => {
     const allSubjects = await db.select().from(subjects);
     res.json(allSubjects);
   });
 
-  app.post("/api/subjects", async (req, res) => {
-    const subject = await db.insert(subjects).values(req.body).returning();
-    res.json(subject[0]);
+  app.post("/api/subjects", requireAdmin, async (req, res) => {
+    try {
+      const subject = await db.insert(subjects).values({
+        ...req.body,
+        isActive: true,
+      }).returning();
+      res.json(subject[0]);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.put("/api/subjects/:id", requireAdmin, async (req, res) => {
+    try {
+      const [subject] = await db
+        .update(subjects)
+        .set({
+          ...req.body,
+          updatedAt: new Date(),
+        })
+        .where(eq(subjects.id, req.params.id))
+        .returning();
+
+      if (!subject) {
+        return res.status(404).send("Subject not found");
+      }
+
+      res.json(subject);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/subjects/:id", requireAdmin, async (req, res) => {
+    try {
+      const [subject] = await db
+        .update(subjects)
+        .set({ isActive: false })
+        .where(eq(subjects.id, req.params.id))
+        .returning();
+
+      if (!subject) {
+        return res.status(404).send("Subject not found");
+      }
+
+      res.json({ message: "Subject deleted successfully" });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
   });
 
   // Classes

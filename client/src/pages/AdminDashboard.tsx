@@ -18,7 +18,10 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
-import { Loader2 } from "lucide-react";
+import { Loader2, Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import SubjectList from "@/components/subjects/SubjectList";
+import CreateSubjectDialog from "@/components/subjects/CreateSubjectDialog";
 
 interface AttendanceStats {
   sessionId: string;
@@ -35,6 +38,7 @@ interface FinancialStats {
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState("overview");
+  const [isCreateSubjectOpen, setIsCreateSubjectOpen] = useState(false);
 
   const { data: attendanceStats, isLoading: loadingAttendance } = useQuery<AttendanceStats[]>({
     queryKey: ["/api/analytics/attendance"],
@@ -81,6 +85,7 @@ export default function AdminDashboard() {
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="subjects">Subjects</TabsTrigger>
           <TabsTrigger value="attendance">Attendance</TabsTrigger>
           <TabsTrigger value="financial">Financial</TabsTrigger>
         </TabsList>
@@ -117,6 +122,21 @@ export default function AdminDashboard() {
               </CardContent>
             </Card>
           </div>
+        </TabsContent>
+
+        <TabsContent value="subjects" className="space-y-4">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-2xl font-bold">Subject Management</h2>
+            <Button onClick={() => setIsCreateSubjectOpen(true)}>
+              <Plus className="w-4 h-4 mr-2" />
+              Add Subject
+            </Button>
+          </div>
+          <SubjectList />
+          <CreateSubjectDialog 
+            open={isCreateSubjectOpen} 
+            onOpenChange={setIsCreateSubjectOpen} 
+          />
         </TabsContent>
 
         <TabsContent value="attendance" className="space-y-4">
