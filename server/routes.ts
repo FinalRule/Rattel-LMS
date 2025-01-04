@@ -10,7 +10,7 @@ import {
   payments,
   sessionAttendance,
 } from "@db/schema";
-import { eq } from "drizzle-orm";
+import { eq, count } from "drizzle-orm";
 
 export function registerRoutes(app: Express): Server {
   // Auth routes
@@ -89,7 +89,7 @@ export function registerRoutes(app: Express): Server {
       .select({
         sessionId: sessionAttendance.sessionId,
         status: sessionAttendance.status,
-        totalStudents: db.fn.count(sessionAttendance.userId)
+        totalStudents: count(sessionAttendance.userId)
       })
       .from(sessionAttendance)
       .groupBy(sessionAttendance.sessionId, sessionAttendance.status);

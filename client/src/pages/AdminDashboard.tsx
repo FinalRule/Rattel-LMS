@@ -20,14 +20,27 @@ import {
 } from "recharts";
 import { Loader2 } from "lucide-react";
 
+interface AttendanceStats {
+  sessionId: string;
+  status: string;
+  totalStudents: number;
+}
+
+interface FinancialStats {
+  totalAmount: number;
+  currency: string;
+  status: string;
+  type: string;
+}
+
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState("overview");
 
-  const { data: attendanceStats, isLoading: loadingAttendance } = useQuery({
+  const { data: attendanceStats, isLoading: loadingAttendance } = useQuery<AttendanceStats[]>({
     queryKey: ["/api/analytics/attendance"],
   });
 
-  const { data: financialStats, isLoading: loadingFinancial } = useQuery({
+  const { data: financialStats, isLoading: loadingFinancial } = useQuery<FinancialStats[]>({
     queryKey: ["/api/analytics/financial"],
   });
 
@@ -38,6 +51,28 @@ export default function AdminDashboard() {
       </div>
     );
   }
+
+  // Transform attendance data for chart
+  const attendanceData = attendanceStats?.reduce((acc: any[], curr) => {
+    const existingEntry = acc.find(item => item.sessionId === curr.sessionId);
+    if (existingEntry) {
+      existingEntry[curr.status] = curr.totalStudents;
+    } else {
+      acc.push({
+        sessionId: curr.sessionId,
+        [curr.status]: curr.totalStudents
+      });
+    }
+    return acc;
+  }, []) || [];
+
+  // Transform financial data for chart
+  const financialData = financialStats?.map(stat => ({
+    type: stat.type,
+    amount: stat.totalAmount,
+    currency: stat.currency,
+    status: stat.status
+  })) || [];
 
   return (
     <div className="container mx-auto py-8">
@@ -88,14 +123,14 @@ export default function AdminDashboard() {
           <Card>
             <CardHeader>
               <CardTitle>Attendance Overview</CardTitle>
-              <CardDescription>Monthly attendance statistics</CardDescription>
+              <CardDescription>Session attendance statistics</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="h-[400px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={attendanceStats}>
+                  <LineChart data={attendanceData}>
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" />
+                    <XAxis dataKey="sessionId" />
                     <YAxis />
                     <Tooltip />
                     <Legend />
@@ -122,27 +157,21 @@ export default function AdminDashboard() {
           <Card>
             <CardHeader>
               <CardTitle>Financial Overview</CardTitle>
-              <CardDescription>Monthly revenue statistics</CardDescription>
+              <CardDescription>Payment statistics</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="h-[400px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={financialStats}>
+                  <LineChart data={financialData}>
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" />
+                    <XAxis dataKey="type" />
                     <YAxis />
                     <Tooltip />
                     <Legend />
                     <Line
                       type="monotone"
-                      dataKey="revenue"
+                      dataKey="amount"
                       stroke="#0ea5e9"
-                      activeDot={{ r: 8 }}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="expenses"
-                      stroke="#f43f5e"
                       activeDot={{ r: 8 }}
                     />
                   </LineChart>

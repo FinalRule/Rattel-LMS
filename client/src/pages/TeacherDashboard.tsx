@@ -12,14 +12,26 @@ import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import { useState } from "react";
 
+interface Session {
+  id: string;
+  title: string;
+  dateTime: string;
+}
+
+interface Class {
+  id: string;
+  name: string;
+  studentCount: number;
+}
+
 export default function TeacherDashboard() {
   const [date, setDate] = useState<Date | undefined>(new Date());
 
-  const { data: sessions, isLoading: loadingSessions } = useQuery({
+  const { data: sessions, isLoading: loadingSessions } = useQuery<Session[]>({
     queryKey: ["/api/sessions"],
   });
 
-  const { data: classes, isLoading: loadingClasses } = useQuery({
+  const { data: classes, isLoading: loadingClasses } = useQuery<Class[]>({
     queryKey: ["/api/classes"],
   });
 
@@ -66,7 +78,7 @@ export default function TeacherDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {sessions?.map((session: any) => (
+                  {sessions?.map((session) => (
                     <div
                       key={session.id}
                       className="flex justify-between items-center p-4 border rounded-lg"
@@ -94,7 +106,7 @@ export default function TeacherDashboard() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {classes?.map((class_: any) => (
+                {classes?.map((class_) => (
                   <div
                     key={class_.id}
                     className="flex justify-between items-center p-4 border rounded-lg"
@@ -122,7 +134,6 @@ export default function TeacherDashboard() {
             <CardContent>
               <div className="space-y-4">
                 <Button>Upload New Resource</Button>
-                {/* Resource list would go here */}
               </div>
             </CardContent>
           </Card>
