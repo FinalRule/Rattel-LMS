@@ -5,7 +5,7 @@ import session from "express-session";
 import createMemoryStore from "memorystore";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
-import { users, insertUserSchema } from "@db/schema";
+import { users, type User } from "@db/schema";
 import { db } from "@db";
 import { eq } from "drizzle-orm";
 
@@ -31,7 +31,8 @@ const crypto = {
 
 declare global {
   namespace Express {
-    interface User extends typeof users.$inferSelect {}
+    // eslint-disable-next-line @typescript-eslint/no-empty-interface
+    interface User extends User {}
   }
 }
 
