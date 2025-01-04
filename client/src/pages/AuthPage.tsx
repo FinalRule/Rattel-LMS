@@ -12,6 +12,8 @@ import { useToast } from "@/hooks/use-toast";
 const authSchema = z.object({
   username: z.string().min(3, "Username must be at least 3 characters"),
   password: z.string().min(6, "Password must be at least 6 characters"),
+  email: z.string().email("Invalid email address").optional().or(z.literal("")),
+  fullName: z.string().min(2, "Full name must be at least 2 characters").optional().or(z.literal("")),
 });
 
 export default function AuthPage() {
@@ -24,6 +26,8 @@ export default function AuthPage() {
     defaultValues: {
       username: "",
       password: "",
+      email: "",
+      fullName: "",
     },
   });
 
@@ -39,6 +43,15 @@ export default function AuthPage() {
           });
         }
       } else {
+        if (!data.email || !data.fullName) {
+          toast({
+            title: "Error",
+            description: "Email and full name are required for registration",
+            variant: "destructive",
+          });
+          return;
+        }
+
         const result = await register(data);
         if (!result.ok) {
           toast({
@@ -81,7 +94,7 @@ export default function AuthPage() {
                   </FormItem>
                 )}
               />
-              
+
               <FormField
                 control={form.control}
                 name="password"
@@ -96,11 +109,43 @@ export default function AuthPage() {
                 )}
               />
 
+              {!isLogin && (
+                <>
+                  <FormField
+                    control={form.control}
+                    name="email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Email</FormLabel>
+                        <FormControl>
+                          <Input type="email" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="fullName"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Full Name</FormLabel>
+                        <FormControl>
+                          <Input {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </>
+              )}
+
               <div className="flex flex-col gap-4">
                 <Button type="submit" className="w-full">
                   {isLogin ? "Login" : "Register"}
                 </Button>
-                
+
                 <Button
                   type="button"
                   variant="outline"

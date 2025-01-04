@@ -107,7 +107,7 @@ export function setupAuth(app: Express) {
           .send("Invalid input: " + result.error.issues.map(i => i.message).join(", "));
       }
 
-      const { username, password, role, email } = result.data;
+      const { username, password, email, fullName, role = "student", timezone = "UTC" } = result.data;
 
       const [existingUser] = await db
         .select()
@@ -126,9 +126,10 @@ export function setupAuth(app: Express) {
         .values({
           username,
           password: hashedPassword,
-          role,
           email,
-          timezone: "UTC", // Default timezone
+          fullName,
+          role,
+          timezone,
           active: true,
         })
         .returning();
@@ -139,7 +140,12 @@ export function setupAuth(app: Express) {
         }
         return res.json({
           message: "Registration successful",
-          user: { id: newUser.id, username: newUser.username, role: newUser.role },
+          user: { 
+            id: newUser.id, 
+            username: newUser.username,
+            role: newUser.role,
+            email: newUser.email 
+          },
         });
       });
     } catch (error) {
@@ -171,7 +177,12 @@ export function setupAuth(app: Express) {
 
         return res.json({
           message: "Login successful",
-          user: { id: user.id, username: user.username, role: user.role },
+          user: { 
+            id: user.id, 
+            username: user.username,
+            role: user.role,
+            email: user.email 
+          },
         });
       });
     };
