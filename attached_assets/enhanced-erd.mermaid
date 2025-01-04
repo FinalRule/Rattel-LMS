@@ -1,0 +1,154 @@
+erDiagram
+    SUBJECT {
+        int subject_id PK
+        string name
+        string details
+        string category
+        string difficulty_level
+        json available_durations
+        int sessions_per_month
+        json prerequisites
+        int default_buffer_time
+        boolean active
+        timestamp created_at
+        timestamp updated_at
+        timestamp deleted_at
+    }
+
+    TEACHER {
+        int teacher_id PK
+        string full_name
+        string bio
+        string gender
+        date date_of_birth
+        string cv_file
+        string residence_city
+        string phone
+        string email
+        string whatsapp
+        json payment_method
+        string timezone
+        decimal base_salary_per_hour
+        string google_account
+        json availability_schedule
+        int buffer_time
+        string notification_preference
+        json video_preferences
+        string currency_preference
+        boolean active
+        timestamp created_at
+    }
+
+    STUDENT {
+        int student_id PK
+        string full_name
+        date date_of_birth
+        string gender
+        string nationality
+        string residence_country
+        string timezone
+        string phone
+        string email
+        string whatsapp
+        string payment_method
+        string parent_name
+        json learning_goals
+        json progress_metrics
+        json session_preferences
+        string currency_preference
+        boolean active
+        timestamp created_at
+    }
+
+    CLASS {
+        int class_id PK
+        int subject_id FK
+        int teacher_id FK
+        date start_date
+        int default_duration
+        json week_days
+        json schedule
+        int buffer_time
+        decimal monthly_price
+        string currency
+        decimal teacher_salary_rate
+        string status
+        timestamp created_at
+    }
+
+    SESSION {
+        int session_id PK
+        int class_id FK
+        datetime date_time
+        string google_meet_link
+        string student_attendance
+        string teacher_attendance
+        int planned_duration
+        int actual_duration
+        int buffer_time_before
+        int buffer_time_after
+        string status
+        text teacher_notes
+        text student_notes
+        int student_points
+        boolean makeup_session
+        timestamp created_at
+    }
+
+    PRICEPLAN {
+        int priceplan_id PK
+        int subject_id FK
+        string plan_name
+        int duration_per_session
+        int sessions_per_month
+        decimal monthly_fee
+        string currency
+        decimal promotional_price
+        date promotion_valid_until
+        int minimum_commitment
+        boolean trial_eligible
+        boolean active
+        timestamp created_at
+    }
+
+    PAYMENT {
+        int payment_id PK
+        int user_id FK
+        string user_type
+        decimal amount
+        string currency
+        decimal exchange_rate
+        string status
+        string payment_method
+        string reference
+        timestamp payment_date
+        timestamp created_at
+    }
+
+    RESOURCE {
+        int resource_id PK
+        int owner_id FK
+        string title
+        string type
+        string content
+        json shared_with
+        string status
+        timestamp created_at
+    }
+
+    SUBJECT ||--o{ PRICEPLAN : "has"
+    SUBJECT ||--o{ CLASS : "has"
+    SUBJECT ||--o{ RESOURCE : "contains"
+    
+    TEACHER ||--o{ CLASS : "teaches"
+    TEACHER ||--o{ RESOURCE : "owns"
+    TEACHER }o--o{ SUBJECT : "can teach"
+    
+    STUDENT }o--o{ CLASS : "enrolled in"
+    STUDENT }o--o{ SUBJECT : "studies"
+    
+    CLASS ||--o{ SESSION : "contains"
+    CLASS }o--|| PRICEPLAN : "uses"
+    
+    PAYMENT }o--|| STUDENT : "paid by"
+    PAYMENT }o--|| TEACHER : "paid to"

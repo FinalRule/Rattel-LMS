@@ -1,0 +1,97 @@
+flowchart TD
+    subgraph Core["Core Entities"]
+        Subject["SUBJECT
+        ---
+        • Basic Info
+        • Durations
+        • Sessions/Month"]
+        
+        Teacher["TEACHER
+        ---
+        • Profile
+        • Availability
+        • Payment Info"]
+        
+        Student["STUDENT
+        ---
+        • Profile
+        • Learning Prefs
+        • Payment Info"]
+    end
+
+    subgraph Schedule["Scheduling System"]
+        Class["CLASS
+        ---
+        • Schedule
+        • Pricing
+        • Status"]
+        
+        Session["SESSION
+        ---
+        • Attendance
+        • Duration
+        • Notes"]
+    end
+
+    subgraph Finance["Financial System"]
+        PricePlan["PRICE PLAN
+        ---
+        • Fees
+        • Duration
+        • Terms"]
+        
+        Payment["PAYMENT
+        ---
+        • Transactions
+        • Currency
+        • Status"]
+    end
+
+    subgraph Resources["Resource System"]
+        Resource["RESOURCE
+        ---
+        • Content
+        • Access
+        • Sharing"]
+    end
+
+    %% Core Relationships
+    Subject -->|"Defines"| PricePlan
+    Teacher -->|"Sets"| Class
+    Student -->|"Enrolls"| Class
+    
+    %% Schedule Flow
+    Class -->|"Generates"| Session
+    Class -->|"Uses"| PricePlan
+    
+    %% Financial Flow
+    PricePlan -->|"Determines"| Payment
+    Session -->|"Triggers"| Payment
+    
+    %% Resource Management
+    Teacher -->|"Creates"| Resource
+    Subject -.->|"Contains"| Resource
+    Class -.->|"Uses"| Resource
+    Session -.->|"Uses"| Resource
+
+    %% System Links
+    Student -->|"Accesses"| Session
+    Teacher -->|"Manages"| Session
+    Subject -->|"Defines"| Class
+
+    style Core fill:#e3f2fd,stroke:#1565c0
+    style Schedule fill:#fff3e0,stroke:#ef6c00
+    style Finance fill:#e8f5e9,stroke:#2e7d32
+    style Resources fill:#f3e5f5,stroke:#6a1b9a
+
+    style Subject fill:#bbdefb,stroke:#1565c0
+    style Teacher fill:#bbdefb,stroke:#1565c0
+    style Student fill:#bbdefb,stroke:#1565c0
+    
+    style Class fill:#ffe0b2,stroke:#ef6c00
+    style Session fill:#ffe0b2,stroke:#ef6c00
+    
+    style PricePlan fill:#c8e6c9,stroke:#2e7d32
+    style Payment fill:#c8e6c9,stroke:#2e7d32
+    
+    style Resource fill:#e1bee7,stroke:#6a1b9a
