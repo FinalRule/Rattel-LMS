@@ -67,14 +67,15 @@ export function setupAuth(app: Express) {
 
   passport.use(
     new LocalStrategy({
-      usernameField: 'email',
+      usernameField: 'username',
       passwordField: 'password'
-    }, async (email, password, done) => {
+    }, async (username, password, done) => {
       try {
+        // Try to find user by username or email
         const [user] = await db
           .select()
           .from(users)
-          .where(eq(users.email, email))
+          .where(eq(users.email, username))
           .limit(1);
 
         if (!user) {
@@ -110,9 +111,9 @@ export function setupAuth(app: Express) {
 
   app.post("/api/register", async (req, res, next) => {
     try {
-      const { email, password, fullName, role = "student" } = req.body;
+      const { username, password, fullName, role = "student" } = req.body;
 
-      if (!email || !password || !fullName) {
+      if (!username || !password || !fullName) {
         return res.status(400).send("Email, password, and full name are required");
       }
 
@@ -120,7 +121,7 @@ export function setupAuth(app: Express) {
       const [existingUser] = await db
         .select()
         .from(users)
-        .where(eq(users.email, email))
+        .where(eq(users.email, username))
         .limit(1);
 
       if (existingUser) {
@@ -134,7 +135,7 @@ export function setupAuth(app: Express) {
       const [newUser] = await db
         .insert(users)
         .values({
-          email,
+          email: username,
           password: hashedPassword,
           fullName,
           role,
@@ -164,9 +165,9 @@ export function setupAuth(app: Express) {
   });
 
   app.post("/api/login", (req, res, next) => {
-    const { email, password } = req.body;
+    const { username, password } = req.body;
 
-    if (!email || !password) {
+    if (!username || !password) {
       return res.status(400).send("Email and password are required");
     }
 

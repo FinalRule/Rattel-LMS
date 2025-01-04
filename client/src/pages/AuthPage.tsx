@@ -11,9 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 
 const authSchema = z.object({
-  username: z.string().min(3, "Username must be at least 3 characters"),
+  username: z.string().email("Invalid email address").min(1, "Email is required"),
   password: z.string().min(6, "Password must be at least 6 characters"),
-  email: z.string().email("Invalid email address").optional().or(z.literal("")),
   fullName: z.string().min(2, "Full name must be at least 2 characters").optional().or(z.literal("")),
   role: z.enum(["admin", "teacher", "student"]).optional(),
 });
@@ -28,7 +27,6 @@ export default function AuthPage() {
     defaultValues: {
       username: "",
       password: "",
-      email: "",
       fullName: "",
       role: "student",
     },
@@ -37,7 +35,11 @@ export default function AuthPage() {
   const onSubmit = async (data: z.infer<typeof authSchema>) => {
     try {
       if (isLogin) {
-        const result = await login(data);
+        const result = await login({
+          username: data.username,
+          password: data.password
+        });
+
         if (!result.ok) {
           toast({
             title: "Error",
@@ -46,18 +48,20 @@ export default function AuthPage() {
           });
         }
       } else {
-        if (!data.email || !data.fullName) {
+        if (!data.fullName) {
           toast({
             title: "Error",
-            description: "Email and full name are required for registration",
+            description: "Full name is required for registration",
             variant: "destructive",
           });
           return;
         }
 
         const result = await register({
-          ...data,
-          role: data.role || "student", // Default to student if not specified
+          username: data.username,
+          password: data.password,
+          fullName: data.fullName,
+          role: data.role || "student",
         });
 
         if (!result.ok) {
@@ -93,9 +97,9 @@ export default function AuthPage() {
                 name="username"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Username</FormLabel>
+                    <FormLabel>Email</FormLabel>
                     <FormControl>
-                      <Input {...field} />
+                      <Input type="email" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -118,20 +122,6 @@ export default function AuthPage() {
 
               {!isLogin && (
                 <>
-                  <FormField
-                    control={form.control}
-                    name="email"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Email</FormLabel>
-                        <FormControl>
-                          <Input type="email" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
                   <FormField
                     control={form.control}
                     name="fullName"
