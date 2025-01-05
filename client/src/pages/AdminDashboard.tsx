@@ -21,6 +21,7 @@ import {
 import { Loader2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import SubjectList from "@/components/subjects/SubjectList";
+import TeacherList from "@/components/teachers/TeacherList";
 import CreateSubjectDialog from "@/components/subjects/CreateSubjectDialog";
 
 interface AttendanceStats {
@@ -56,28 +57,6 @@ export default function AdminDashboard() {
     );
   }
 
-  // Transform attendance data for chart
-  const attendanceData = attendanceStats?.reduce((acc: any[], curr) => {
-    const existingEntry = acc.find(item => item.sessionId === curr.sessionId);
-    if (existingEntry) {
-      existingEntry[curr.status] = curr.totalStudents;
-    } else {
-      acc.push({
-        sessionId: curr.sessionId,
-        [curr.status]: curr.totalStudents
-      });
-    }
-    return acc;
-  }, []) || [];
-
-  // Transform financial data for chart
-  const financialData = financialStats?.map(stat => ({
-    type: stat.type,
-    amount: stat.totalAmount,
-    currency: stat.currency,
-    status: stat.status
-  })) || [];
-
   return (
     <div className="container mx-auto py-8">
       <h1 className="text-4xl font-bold mb-8">Admin Dashboard</h1>
@@ -85,6 +64,7 @@ export default function AdminDashboard() {
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="teachers">Teachers</TabsTrigger>
           <TabsTrigger value="subjects">Subjects</TabsTrigger>
           <TabsTrigger value="attendance">Attendance</TabsTrigger>
           <TabsTrigger value="financial">Financial</TabsTrigger>
@@ -148,7 +128,18 @@ export default function AdminDashboard() {
             <CardContent>
               <div className="h-[400px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={attendanceData}>
+                  <LineChart data={attendanceStats?.reduce((acc: any[], curr) => {
+                    const existingEntry = acc.find(item => item.sessionId === curr.sessionId);
+                    if (existingEntry) {
+                      existingEntry[curr.status] = curr.totalStudents;
+                    } else {
+                      acc.push({
+                        sessionId: curr.sessionId,
+                        [curr.status]: curr.totalStudents
+                      });
+                    }
+                    return acc;
+                  }, []) || []}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="sessionId" />
                     <YAxis />
@@ -182,7 +173,12 @@ export default function AdminDashboard() {
             <CardContent>
               <div className="h-[400px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={financialData}>
+                  <LineChart data={financialStats?.map(stat => ({
+                    type: stat.type,
+                    amount: stat.totalAmount,
+                    currency: stat.currency,
+                    status: stat.status
+                  })) || []}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="type" />
                     <YAxis />
@@ -199,6 +195,17 @@ export default function AdminDashboard() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="teachers" className="space-y-4">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-2xl font-bold">Teacher Management</h2>
+            <Button>
+              <Plus className="w-4 h-4 mr-2" />
+              Add Teacher
+            </Button>
+          </div>
+          <TeacherList />
         </TabsContent>
       </Tabs>
     </div>
