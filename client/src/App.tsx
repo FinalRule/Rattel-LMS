@@ -6,7 +6,6 @@ import AuthPage from "@/pages/AuthPage";
 import AdminDashboard from "@/pages/AdminDashboard";
 import TeacherDashboard from "@/pages/TeacherDashboard";
 import StudentDashboard from "@/pages/StudentDashboard";
-import { Toaster } from "@/components/ui/toaster";
 
 function App() {
   const { user, isLoading } = useUser();
@@ -24,18 +23,20 @@ function App() {
   }
 
   return (
-    <Switch>
-      {user.role === "admin" && (
-        <Route path="/" component={AdminDashboard} />
-      )}
-      {user.role === "teacher" && (
-        <Route path="/" component={TeacherDashboard} />
-      )}
-      {user.role === "student" && (
-        <Route path="/" component={StudentDashboard} />
-      )}
-      <Route component={NotFound} />
-    </Switch>
+    <>
+      <Switch>
+        {user.role === "admin" && (
+          <Route path="/" component={AdminDashboard} />
+        )}
+        {user.role === "teacher" && (
+          <Route path="/" component={TeacherDashboard} />
+        )}
+        {user.role === "student" && (
+          <Route path="/" component={StudentDashboard} />
+        )}
+        <Route component={NotFound} />
+      </Switch>
+    </>
   );
 }
 

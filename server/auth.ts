@@ -36,7 +36,7 @@ declare global {
       id: string;
       email: string;
       role: string;
-      fullName: string;
+      fullName: string | null;
     }
   }
 }
@@ -47,7 +47,10 @@ export function setupAuth(app: Express) {
     secret: process.env.REPL_ID || "lms-session-secret",
     resave: false,
     saveUninitialized: false,
-    cookie: {},
+    cookie: {
+      secure: false, // Set to true in production with HTTPS
+      maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    },
     store: new MemoryStore({
       checkPeriod: 86400000, // prune expired entries every 24h
     }),
@@ -56,6 +59,7 @@ export function setupAuth(app: Express) {
   if (app.get("env") === "production") {
     app.set("trust proxy", 1);
     sessionSettings.cookie = {
+      ...sessionSettings.cookie,
       secure: true,
     };
   }
@@ -82,10 +86,12 @@ export function setupAuth(app: Express) {
           if (!user) {
             return done(null, false, { message: "Incorrect email." });
           }
+
           const isMatch = await crypto.compare(password, user.password);
           if (!isMatch) {
             return done(null, false, { message: "Incorrect password." });
           }
+
           return done(null, {
             id: user.id,
             email: user.email,
@@ -132,7 +138,7 @@ export function setupAuth(app: Express) {
       const { email, password, fullName, role = "student" } = req.body;
 
       if (!email || !password || !fullName) {
-        return res.status(400).send("Email, password, and full name are required");
+        return res.status(400).json({ error: "Email, password, and full name are required" });
       }
 
       // Check if user already exists
@@ -143,7 +149,7 @@ export function setupAuth(app: Express) {
         .limit(1);
 
       if (existingUser) {
-        return res.status(400).send("Email already exists");
+        return res.status(400).json({ error: "Email already exists" });
       }
 
       // Hash the password
@@ -195,7 +201,7 @@ export function setupAuth(app: Express) {
     const { email, password } = req.body;
 
     if (!email || !password) {
-      return res.status(400).send("Email and password are required");
+      return res.status(400).json({ error: "Email and password are required" });
     }
 
     passport.authenticate(
@@ -206,7 +212,7 @@ export function setupAuth(app: Express) {
         }
 
         if (!user) {
-          return res.status(400).send(info.message ?? "Login failed");
+          return res.status(400).json({ error: info.message ?? "Login failed" });
         }
 
         req.login(user, (err) => {
@@ -232,7 +238,7 @@ export function setupAuth(app: Express) {
   app.post("/api/logout", (req, res) => {
     req.logout((err) => {
       if (err) {
-        return res.status(500).send("Logout failed");
+        return res.status(500).json({ error: "Logout failed" });
       }
       res.json({ message: "Logout successful" });
     });
@@ -243,6 +249,6 @@ export function setupAuth(app: Express) {
     if (req.isAuthenticated()) {
       return res.json(req.user);
     }
-    res.status(401).send("Not logged in");
+    res.status(401).json({ error: "Not logged in" });
   });
 }

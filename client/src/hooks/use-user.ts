@@ -15,7 +15,7 @@ type User = {
   id: string;
   email: string;
   role: string;
-  fullName: string;
+  fullName: string | null;
 };
 
 type RequestResult = {
@@ -40,8 +40,8 @@ async function handleRequest(
     });
 
     if (!response.ok) {
-      const text = await response.text();
-      return { ok: false, message: text };
+      const data = await response.json();
+      return { ok: false, message: data.error || response.statusText };
     }
 
     const data = await response.json();
@@ -76,20 +76,26 @@ export function useUser() {
   const { toast } = useToast();
 
   const { data: user, error, isLoading } = useQuery<User | null>({
-    queryKey: ['user'],
+    queryKey: ['/api/user'],
     queryFn: fetchUser,
     staleTime: Infinity,
-    retry: false
+    retry: false,
   });
 
   const loginMutation = useMutation<RequestResult, Error, LoginData>({
     mutationFn: (userData) => handleRequest('/api/login', 'POST', userData),
     onSuccess: (result) => {
       if (result.ok) {
-        queryClient.invalidateQueries({ queryKey: ['user'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/user'] });
         toast({
           title: "Success",
           description: "Logged in successfully",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: result.message,
+          variant: "destructive",
         });
       }
     },
@@ -99,7 +105,7 @@ export function useUser() {
     mutationFn: () => handleRequest('/api/logout', 'POST'),
     onSuccess: (result) => {
       if (result.ok) {
-        queryClient.setQueryData(['user'], null);
+        queryClient.setQueryData(['/api/user'], null);
         toast({
           title: "Success",
           description: "Logged out successfully",
@@ -112,10 +118,16 @@ export function useUser() {
     mutationFn: (userData) => handleRequest('/api/register', 'POST', userData),
     onSuccess: (result) => {
       if (result.ok) {
-        queryClient.invalidateQueries({ queryKey: ['user'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/user'] });
         toast({
-          title: "Success", 
+          title: "Success",
           description: "Registration successful",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: result.message,
+          variant: "destructive",
         });
       }
     },
