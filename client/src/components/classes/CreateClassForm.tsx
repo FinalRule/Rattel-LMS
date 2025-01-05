@@ -56,14 +56,14 @@ export default function CreateClassForm({ onClose }: { onClose: () => void }) {
     },
   });
 
-  // Fetch teachers with error handling
-  const { data: teachers = [], isLoading: isTeachersLoading, error: teachersError } = useQuery({
+  // Fetch teachers
+  const { data: teachers = [], isLoading: isTeachersLoading } = useQuery({
     queryKey: ['/api/teachers'],
     select: (data) => data || [],
   });
 
-  // Fetch price plans with error handling
-  const { data: pricePlans = [], isLoading: isPricePlansLoading, error: pricePlansError } = useQuery({
+  // Fetch price plans
+  const { data: pricePlans = [], isLoading: isPricePlansLoading } = useQuery({
     queryKey: ['/api/price-plans'],
     select: (data) => data || [],
   });
@@ -113,21 +113,10 @@ export default function CreateClassForm({ onClose }: { onClose: () => void }) {
     }
   };
 
-  const isLoading = isTeachersLoading || isPricePlansLoading;
-  const hasError = teachersError || pricePlansError;
-
-  if (isLoading) {
+  if (isTeachersLoading || isPricePlansLoading) {
     return (
       <div className="flex items-center justify-center p-6">
         <Loader2 className="h-6 w-6 animate-spin" />
-      </div>
-    );
-  }
-
-  if (hasError) {
-    return (
-      <div className="p-6 text-center text-destructive">
-        <p>Failed to load required data. Please try again.</p>
       </div>
     );
   }
@@ -137,7 +126,7 @@ export default function CreateClassForm({ onClose }: { onClose: () => void }) {
       <div className="mb-6">
         <h2 className="text-lg font-semibold">Create New Class</h2>
         <p className="text-sm text-muted-foreground">
-          Fill in the class details below
+          Fill in all the required information below
         </p>
       </div>
 
