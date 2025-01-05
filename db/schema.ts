@@ -104,11 +104,7 @@ export const studentRelations = relations(students, ({ one, many }) => ({
     fields: [students.userId],
     references: [users.id]
   }),
-  enrollments: many(classEnrollments),
-  attendance: many(sessionAttendance, {
-    fields: [students.userId],
-    references: [sessionAttendance.userId]
-  })
+  enrollments: many(classEnrollments)
 }));
 
 // Classes
@@ -236,6 +232,17 @@ export const subjectRelations = relations(subjects, ({ many }) => ({
   pricePlans: many(pricePlans),
 }));
 
+export const classRelations = relations(classes, ({ one }) => ({
+  teacher: one(teachers, {
+    fields: [classes.teacherId],
+    references: [teachers.userId],
+  }),
+  pricePlan: one(pricePlans, {
+    fields: [classes.pricePlanId],
+    references: [pricePlans.id],
+  }),
+}));
+
 
 // Schemas
 export const insertUserSchema = createInsertSchema(users);
@@ -277,3 +284,13 @@ export type SelectSubject = typeof subjects.$inferSelect;
 
 export type InsertPricePlan = typeof pricePlans.$inferInsert;
 export type SelectPricePlan = typeof pricePlans.$inferSelect;
+
+export type InsertClass = typeof classes.$inferInsert;
+export type SelectClass = typeof classes.$inferSelect;
+
+export type SelectClassWithRelations = SelectClass & {
+  teacher: SelectTeacher;
+  pricePlan: SelectPricePlan & {
+    subject: SelectSubject;
+  };
+};

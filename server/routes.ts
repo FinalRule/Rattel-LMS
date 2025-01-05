@@ -37,10 +37,10 @@ export function registerRoutes(app: Express): Server {
   // Middleware to check if user is authenticated and is admin
   const requireAdmin = (req: any, res: any, next: any) => {
     if (!req.isAuthenticated()) {
-      return res.status(401).send("Not authenticated");
+      return res.status(401).send("Authentication required");
     }
     if (req.user.role !== "admin") {
-      return res.status(403).send("Not authorized");
+      return res.status(403).send("Admin privileges required");
     }
     next();
   };
@@ -282,6 +282,24 @@ export function registerRoutes(app: Express): Server {
         });
       }
 
+      // Validate if teacher exists
+      const teacher = await db.query.teachers.findFirst({
+        where: eq(teachers.userId, teacherId),
+      });
+
+      if (!teacher) {
+        return res.status(400).json({ error: "Teacher not found" });
+      }
+
+      // Validate if price plan exists
+      const pricePlan = await db.query.pricePlans.findFirst({
+        where: eq(pricePlans.id, pricePlanId),
+      });
+
+      if (!pricePlan) {
+        return res.status(400).json({ error: "Price plan not found" });
+      }
+
       // Create the class
       const [newClass] = await db
         .insert(classes)
@@ -320,6 +338,7 @@ export function registerRoutes(app: Express): Server {
       res.status(400).json({ error: error.message });
     }
   });
+
 
   // Sessions
   app.get("/api/sessions", async (req, res) => {
