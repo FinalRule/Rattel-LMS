@@ -23,16 +23,17 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { z } from "zod";
+import { insertUserSchema, insertStudentSchema } from "@db/schema";
 
 const createStudentSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(6),
-  fullName: z.string().min(1),
+  password: z.string().min(6, "Password must be at least 6 characters"),
+  fullName: z.string().min(1, "Full name is required"),
   phone: z.string().optional(),
   whatsapp: z.string().optional(),
-  timezone: z.string().min(1),
-  nationality: z.string().min(1),
-  countryOfResidence: z.string().min(1),
+  timezone: z.string().min(1, "Timezone is required"),
+  nationality: z.string().min(1, "Nationality is required"),
+  countryOfResidence: z.string().min(1, "Country of residence is required"),
   parentName: z.string().optional(),
   learningGoals: z.string().optional(),
   notes: z.string().optional(),
@@ -51,7 +52,7 @@ export default function CreateStudentDialog({ open, onOpenChange }: Props) {
   const form = useForm<FormData>({
     resolver: zodResolver(createStudentSchema),
     defaultValues: {
-      timezone: "UTC",
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     },
   });
 
@@ -62,7 +63,10 @@ export default function CreateStudentDialog({ open, onOpenChange }: Props) {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(data),
+        body: JSON.stringify({
+          ...data,
+          role: "student",
+        }),
       });
 
       if (!response.ok) {

@@ -67,6 +67,131 @@ export const students = pgTable("students", {
   emergencyContact: jsonb("emergency_contact")
 });
 
+// Types
+export type User = typeof users.$inferSelect;
+export type NewUser = typeof users.$inferInsert;
+
+export type Teacher = typeof teachers.$inferSelect;
+export type NewTeacher = typeof teachers.$inferInsert;
+
+export type Student = typeof students.$inferSelect;
+export type NewStudent = typeof students.$inferInsert;
+
+export type SelectTeacher = Teacher & {
+  user: User;
+};
+
+export type SelectStudent = Student & {
+  user: User;
+};
+
+// Relations
+export const userRelations = relations(users, ({ many }) => ({
+  sessions: many(sessionAttendance),
+  payments: many(payments)
+}));
+
+export const teacherRelations = relations(teachers, ({ one, many }) => ({
+  user: one(users, {
+    fields: [teachers.userId],
+    references: [users.id]
+  }),
+  classes: many(classes)
+}));
+
+export const studentRelations = relations(students, ({ one, many }) => ({
+  user: one(users, {
+    fields: [students.userId],
+    references: [users.id]
+  }),
+  enrollments: many(classEnrollments),
+  attendance: many(sessionAttendance, {
+    fields: [students.userId],
+    references: [sessionAttendance.userId]
+  })
+}));
+
+// Classes
+export const classes = pgTable("classes", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  subjectId: uuid("subject_id").references(() => subjects.id),
+  teacherId: uuid("teacher_id").references(() => teachers.userId),
+  pricePlanId: uuid("price_plan_id").references(() => pricePlans.id),
+  name: text("name"),
+  startDate: date("start_date").notNull(),
+  defaultDuration: integer("default_duration").notNull(),
+  schedule: jsonb("schedule").notNull(),
+  bufferTime: integer("buffer_time"),
+  monthlyPrice: decimal("monthly_price", { precision: 10, scale: 2 }).notNull(),
+  currency: text("currency").notNull(),
+  teacherHourlyRate: decimal("teacher_hourly_rate", { precision: 10, scale: 2 }).notNull(),
+  status: text("status", { enum: classStatuses }).default("active"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow()
+});
+
+// Enrollments
+export const classEnrollments = pgTable("class_enrollments", {
+  classId: uuid("class_id").references(() => classes.id),
+  studentId: uuid("student_id").references(() => students.userId),
+  joinedAt: timestamp("joined_at", { withTimezone: true }).defaultNow(),
+  leftAt: timestamp("left_at", { withTimezone: true })
+}, (table) => ({
+  pk: primaryKey(table.classId, table.studentId)
+}));
+
+// Sessions
+export const sessions = pgTable("sessions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  classId: uuid("class_id").references(() => classes.id),
+  sessionNumber: integer("session_number").notNull(),
+  startTime: timestamp("start_time", { withTimezone: true }).notNull(),
+  plannedDuration: integer("planned_duration").notNull(),
+  actualDuration: integer("actual_duration"),
+  googleMeetLink: text("google_meet_link"),
+  bufferTimeBefore: integer("buffer_time_before"),
+  bufferTimeAfter: integer("buffer_time_after"),
+  status: text("status", { enum: sessionStatuses }).default("scheduled"),
+  rescheduledFrom: uuid("rescheduled_from").references(() => sessions.id),
+  cancellationReason: text("cancellation_reason"),
+  recordingUrl: text("recording_url"),
+  teacherNotes: text("teacher_notes"),
+  studentNotes: text("student_notes"),
+  studentPoints: integer("student_points"),
+  isMakeupSession: boolean("is_makeup_session").default(false),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow()
+});
+
+// Attendance
+export const sessionAttendance = pgTable("session_attendance", {
+  sessionId: uuid("session_id").references(() => sessions.id),
+  userId: uuid("user_id").references(() => users.id),
+  status: text("status", { enum: attendanceStatuses }).notNull(),
+  joinTime: timestamp("join_time", { withTimezone: true }),
+  leaveTime: timestamp("leave_time", { withTimezone: true })
+}, (table) => ({
+  pk: primaryKey(table.sessionId, table.userId)
+}));
+
+// Payments
+export const payments = pgTable("payments", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").references(() => users.id),
+  paymentType: text("payment_type", { enum: paymentTypes }).notNull(),
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  currency: text("currency").notNull(),
+  exchangeRate: decimal("exchange_rate", { precision: 10, scale: 4 }),
+  status: text("status", { enum: paymentStatuses }).default("pending"),
+  paymentMethod: jsonb("payment_method"),
+  transactionReference: text("transaction_reference"),
+  invoiceNumber: text("invoice_number"),
+  month: integer("month"),
+  year: integer("year"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  completedAt: timestamp("completed_at", { withTimezone: true })
+});
+
 // Subjects
 export const subjects = pgTable("subjects", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -99,178 +224,6 @@ export const pricePlans = pgTable("price_plans", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow()
 });
 
-// Classes
-export const classes = pgTable("classes", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  subjectId: uuid("subject_id").references(() => subjects.id),
-  teacherId: uuid("teacher_id").references(() => teachers.userId),
-  pricePlanId: uuid("price_plan_id").references(() => pricePlans.id),
-  name: text("name"),
-  startDate: date("start_date").notNull(),
-  defaultDuration: integer("default_duration").notNull(),
-  schedule: jsonb("schedule").notNull(),
-  bufferTime: integer("buffer_time"),
-  monthlyPrice: decimal("monthly_price", { precision: 10, scale: 2 }).notNull(),
-  currency: text("currency").notNull(),
-  teacherHourlyRate: decimal("teacher_hourly_rate", { precision: 10, scale: 2 }).notNull(),
-  status: text("status", { enum: classStatuses }).default("active"),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow()
-});
-
-// Class Enrollments
-export const classEnrollments = pgTable("class_enrollments", {
-  classId: uuid("class_id").references(() => classes.id),
-  studentId: uuid("student_id").references(() => students.userId),
-  joinedAt: timestamp("joined_at", { withTimezone: true }).defaultNow(),
-  leftAt: timestamp("left_at", { withTimezone: true })
-}, (table) => ({
-  pk: primaryKey(table.classId, table.studentId)
-}));
-
-// Sessions
-export const sessions = pgTable("sessions", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  classId: uuid("class_id").references(() => classes.id),
-  sessionNumber: integer("session_number").notNull(),
-  startTime: timestamp("start_time", { withTimezone: true }).notNull(),
-  plannedDuration: integer("planned_duration").notNull(),
-  actualDuration: integer("actual_duration"),
-  googleMeetLink: text("google_meet_link"),
-  bufferTimeBefore: integer("buffer_time_before"),
-  bufferTimeAfter: integer("buffer_time_after"),
-  status: text("status", { enum: sessionStatuses }).default("scheduled"),
-  rescheduledFrom: uuid("rescheduled_from").references(() => sessions.id),
-  cancellationReason: text("cancellation_reason"),
-  recordingUrl: text("recording_url"),
-  teacherNotes: text("teacher_notes"),
-  studentNotes: text("student_notes"),
-  studentPoints: integer("student_points"),
-  isMakeupSession: boolean("is_makeup_session").default(false),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow()
-});
-
-// Session Attendance
-export const sessionAttendance = pgTable("session_attendance", {
-  sessionId: uuid("session_id").references(() => sessions.id),
-  userId: uuid("user_id").references(() => users.id),
-  status: text("status", { enum: attendanceStatuses }).notNull(),
-  joinTime: timestamp("join_time", { withTimezone: true }),
-  leaveTime: timestamp("leave_time", { withTimezone: true })
-}, (table) => ({
-  pk: primaryKey(table.sessionId, table.userId)
-}));
-
-// Payments
-export const payments = pgTable("payments", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  userId: uuid("user_id").references(() => users.id),
-  paymentType: text("payment_type", { enum: paymentTypes }).notNull(),
-  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
-  currency: text("currency").notNull(),
-  exchangeRate: decimal("exchange_rate", { precision: 10, scale: 4 }),
-  status: text("status", { enum: paymentStatuses }).default("pending"),
-  paymentMethod: jsonb("payment_method"),
-  transactionReference: text("transaction_reference"),
-  invoiceNumber: text("invoice_number"),
-  month: integer("month"),
-  year: integer("year"),
-  notes: text("notes"),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-  completedAt: timestamp("completed_at", { withTimezone: true })
-});
-
-// Relations
-export const userRelations = relations(users, ({ many }) => ({
-  sessions: many(sessionAttendance),
-  payments: many(payments)
-}));
-
-export const teacherRelations = relations(teachers, ({ one, many }) => ({
-  user: one(users, {
-    fields: [teachers.userId],
-    references: [users.id]
-  }),
-  subjects: many(teacherSubjects),
-  classes: many(classes)
-}));
-
-export const studentRelations = relations(students, ({ one, many }) => ({
-  user: one(users, {
-    fields: [students.userId],
-    references: [users.id]
-  }),
-  enrollments: many(classEnrollments),
-  attendance: many(sessionAttendance, {
-    fields: [students.userId],
-    references: [sessionAttendance.userId]
-  })
-}));
-
-export const subjectRelations = relations(subjects, ({ many }) => ({
-  teachers: many(teacherSubjects),
-  classes: many(classes),
-  pricePlans: many(pricePlans)
-}));
-
-export const classRelations = relations(classes, ({ one, many }) => ({
-  subject: one(subjects, {
-    fields: [classes.subjectId],
-    references: [subjects.id]
-  }),
-  teacher: one(teachers, {
-    fields: [classes.teacherId],
-    references: [teachers.userId]
-  }),
-  pricePlan: one(pricePlans, {
-    fields: [classes.pricePlanId],
-    references: [pricePlans.id]
-  }),
-  students: many(classEnrollments),
-  sessions: many(sessions)
-}));
-
-
-// Teacher-Subject relationship
-export const teacherSubjects = pgTable("teacher_subjects", {
-  teacherId: uuid("teacher_id").references(() => teachers.userId),
-  subjectId: uuid("subject_id").references(() => subjects.id)
-}, (table) => ({
-  pk: primaryKey(table.teacherId, table.subjectId)
-}));
-
-// Types
-export type User = typeof users.$inferSelect;
-export type NewUser = typeof users.$inferInsert;
-
-export type Teacher = typeof teachers.$inferSelect;
-export type NewTeacher = typeof teachers.$inferInsert;
-
-export type Student = typeof students.$inferSelect;
-export type NewStudent = typeof students.$inferInsert;
-
-export type Subject = typeof subjects.$inferSelect;
-export type NewSubject = typeof subjects.$inferInsert;
-
-export type Class = typeof classes.$inferSelect;
-export type NewClass = typeof classes.$inferInsert;
-
-export type Payment = typeof payments.$inferSelect;
-export type NewPayment = typeof payments.$inferInsert;
-
-export type Session = typeof sessions.$inferSelect;
-export type NewSession = typeof sessions.$inferInsert;
-
-
-// Extended types with relations
-export type SelectTeacher = Teacher & {
-  user: User;
-};
-
-export type SelectStudent = Student & {
-  user: User;
-};
-
 // Schemas
 export const insertUserSchema = createInsertSchema(users);
 export const selectUserSchema = createSelectSchema(users);
@@ -293,12 +246,14 @@ export const selectSessionSchema = createSelectSchema(sessions);
 export const insertPaymentSchema = createInsertSchema(payments);
 export const selectPaymentSchema = createSelectSchema(payments);
 
-// Add TeacherWithUser schema
-export const selectTeacherWithUserSchema = createSelectSchema(teachers).extend({
+export const insertPricePlanSchema = createInsertSchema(pricePlans);
+export const selectPricePlanSchema = createSelectSchema(pricePlans);
+
+// Extended schemas with relations
+export const selectTeacherWithUserSchema = selectTeacherSchema.extend({
   user: selectUserSchema
 });
 
-// Add StudentWithUser schema
-export const selectStudentWithUserSchema = createSelectSchema(students).extend({
+export const selectStudentWithUserSchema = selectStudentSchema.extend({
   user: selectUserSchema
 });
