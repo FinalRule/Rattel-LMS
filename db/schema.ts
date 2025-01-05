@@ -224,6 +224,19 @@ export const pricePlans = pgTable("price_plans", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow()
 });
 
+// Relations
+export const pricePlanRelations = relations(pricePlans, ({ one }) => ({
+  subject: one(subjects, {
+    fields: [pricePlans.subjectId],
+    references: [subjects.id],
+  }),
+}));
+
+export const subjectRelations = relations(subjects, ({ many }) => ({
+  pricePlans: many(pricePlans),
+}));
+
+
 // Schemas
 export const insertUserSchema = createInsertSchema(users);
 export const selectUserSchema = createSelectSchema(users);
@@ -257,3 +270,10 @@ export const selectTeacherWithUserSchema = selectTeacherSchema.extend({
 export const selectStudentWithUserSchema = selectStudentSchema.extend({
   user: selectUserSchema
 });
+
+// Types
+export type InsertSubject = typeof subjects.$inferInsert;
+export type SelectSubject = typeof subjects.$inferSelect;
+
+export type InsertPricePlan = typeof pricePlans.$inferInsert;
+export type SelectPricePlan = typeof pricePlans.$inferSelect;

@@ -28,6 +28,8 @@ import CreateTeacherDialog from "@/components/teachers/CreateTeacherDialog";
 import CreateStudentDialog from "@/components/students/CreateStudentDialog";
 import ClassList from "@/components/classes/ClassList";
 import CreateClassDialog from "@/components/classes/CreateClassDialog";
+import PricePlanList from "@/components/price-plans/PricePlanList";
+import CreatePricePlanDialog from "@/components/price-plans/CreatePricePlanDialog";
 
 interface AttendanceStats {
   sessionId: string;
@@ -48,6 +50,7 @@ export default function AdminDashboard() {
   const [isCreateTeacherOpen, setIsCreateTeacherOpen] = useState(false);
   const [isCreateStudentOpen, setIsCreateStudentOpen] = useState(false);
   const [isCreateClassOpen, setIsCreateClassOpen] = useState(false);
+  const [isCreatePricePlanOpen, setIsCreatePricePlanOpen] = useState(false);
 
   const { data: attendanceStats, isLoading: loadingAttendance } = useQuery<AttendanceStats[]>({
     queryKey: ["/api/analytics/attendance"],
@@ -76,6 +79,7 @@ export default function AdminDashboard() {
           <TabsTrigger value="students">Students</TabsTrigger>
           <TabsTrigger value="classes">Classes</TabsTrigger>
           <TabsTrigger value="subjects">Subjects</TabsTrigger>
+          <TabsTrigger value="price-plans">Price Plans</TabsTrigger>
           <TabsTrigger value="attendance">Attendance</TabsTrigger>
           <TabsTrigger value="financial">Financial</TabsTrigger>
         </TabsList>
@@ -249,6 +253,21 @@ export default function AdminDashboard() {
           <CreateClassDialog 
             open={isCreateClassOpen}
             onOpenChange={setIsCreateClassOpen}
+          />
+        </TabsContent>
+
+        <TabsContent value="price-plans" className="space-y-4">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-2xl font-bold">Price Plan Management</h2>
+            <Button onClick={() => setIsCreatePricePlanOpen(true)}>
+              <Plus className="w-4 h-4 mr-2" />
+              Add Price Plan
+            </Button>
+          </div>
+          <PricePlanList />
+          <CreatePricePlanDialog
+            open={isCreatePricePlanOpen}
+            onOpenChange={setIsCreatePricePlanOpen}
           />
         </TabsContent>
       </Tabs>
