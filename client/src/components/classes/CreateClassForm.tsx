@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -35,6 +35,7 @@ type StepOneData = z.infer<typeof stepOneSchema>;
 export default function CreateClassForm({ onClose }: { onClose: () => void }) {
   const [currentStep, setCurrentStep] = useState(1);
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const form = useForm<StepOneData>({
     resolver: zodResolver(stepOneSchema),
@@ -45,53 +46,100 @@ export default function CreateClassForm({ onClose }: { onClose: () => void }) {
     },
   });
 
-  // Fetch teachers
-  const { data: teachers, isLoading: isTeachersLoading } = useQuery({
+  // Fetch teachers with error handling
+  const { data: teachers = [], isLoading: isTeachersLoading, error: teachersError } = useQuery({
     queryKey: ['/api/teachers'],
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
   });
 
-  // Fetch price plans
-  const { data: pricePlans, isLoading: isPricePlansLoading } = useQuery({
+  // Fetch price plans with error handling
+  const { data: pricePlans = [], isLoading: isPricePlansLoading, error: pricePlansError } = useQuery({
     queryKey: ['/api/price-plans'],
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  });
+
+  // Create class mutation
+  const createClassMutation = useMutation({
+    mutationFn: async (data: StepOneData) => {
+      const response = await fetch('/api/classes', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('ACCESS_TOKEN')}`,
+        },
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to create class');
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/classes'] });
+      toast({
+        title: "Success",
+        description: "Class created successfully",
+      });
+      onClose();
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
   });
 
   const handleNext = async () => {
-    const isValid = await form.trigger();
-    if (isValid) {
-      const formData = form.getValues();
-      // Log the form data to help with debugging
-      console.log('Form data:', formData);
-
-      try {
-        setCurrentStep(prev => prev + 1);
-        toast({
-          title: "Success",
-          description: "Basic information saved successfully",
-        });
-      } catch (error) {
-        toast({
-          title: "Error",
-          description: "Failed to save basic information",
+    try {
+      const isValid = await form.trigger();
+      if (!isValid) {
+        console.log('Form errors:', form.formState.errors);
+        return toast({
+          title: "Validation Error",
+          description: "Please fill in all required fields correctly",
           variant: "destructive",
         });
       }
-    } else {
-      // Show which fields have errors
-      console.log('Form errors:', form.formState.errors);
-      toast({
-        title: "Validation Error",
-        description: "Please fill in all required fields correctly",
-        variant: "destructive",
-      });
+
+      const formData = form.getValues();
+      await createClassMutation.mutateAsync(formData);
+    } catch (error) {
+      console.error('Error creating class:', error);
     }
   };
 
   const isLoading = isTeachersLoading || isPricePlansLoading;
+  const hasError = teachersError || pricePlansError;
 
   if (isLoading) {
     return (
       <div className="flex items-center justify-center p-6">
         <Loader2 className="h-6 w-6 animate-spin" />
+      </div>
+    );
+  }
+
+  if (hasError) {
+    return (
+      <div className="p-6 text-center text-destructive">
+        <p>Failed to load required data. Please try again.</p>
       </div>
     );
   }
@@ -176,6 +224,9 @@ export default function CreateClassForm({ onClose }: { onClose: () => void }) {
               Cancel
             </Button>
             <Button type="submit">
+              {createClassMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : null}
               Next
             </Button>
           </div>
