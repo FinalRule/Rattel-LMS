@@ -69,10 +69,7 @@ interface CreateClassDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
-export default function CreateClassDialog({
-  open,
-  onOpenChange,
-}: CreateClassDialogProps) {
+export default function CreateClassDialog({ open, onOpenChange }: CreateClassDialogProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [step, setStep] = useState(1);
@@ -87,8 +84,8 @@ export default function CreateClassDialog({
     resolver: zodResolver(createClassSchema),
     defaultValues: {
       name: "",
-      teacherId: undefined,
-      pricePlanId: undefined,
+      teacherId: "",
+      pricePlanId: "",
       startDate: new Date().toISOString().split("T")[0],
       durationInMonths: 1,
       defaultDuration: 60,
@@ -111,11 +108,6 @@ export default function CreateClassDialog({
 
   const { data: pricePlans } = useQuery<SelectPricePlan[]>({
     queryKey: ["/api/price-plans"],
-    enabled: !!user,
-  });
-
-  const { data: subjects } = useQuery<SelectSubject[]>({
-    queryKey: ["/api/subjects"],
     enabled: !!user,
   });
 
@@ -152,7 +144,7 @@ export default function CreateClassDialog({
       form.reset();
       setStep(1);
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       if (error.message.includes("401")) {
         toast({
           title: "Authentication Required",
@@ -285,7 +277,7 @@ export default function CreateClassDialog({
                     <FormItem>
                       <FormLabel>Class Name</FormLabel>
                       <FormControl>
-                        <Input {...field} />
+                        <Input {...field} id="name" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -300,7 +292,7 @@ export default function CreateClassDialog({
                       <FormLabel>Teacher</FormLabel>
                       <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>
-                          <SelectTrigger>
+                          <SelectTrigger id="teacherId">
                             <SelectValue placeholder="Select a teacher" />
                           </SelectTrigger>
                         </FormControl>
@@ -325,7 +317,7 @@ export default function CreateClassDialog({
                       <FormLabel>Price Plan</FormLabel>
                       <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>
-                          <SelectTrigger>
+                          <SelectTrigger id="pricePlanId">
                             <SelectValue placeholder="Select a price plan" />
                           </SelectTrigger>
                         </FormControl>
@@ -353,7 +345,7 @@ export default function CreateClassDialog({
                     <FormItem>
                       <FormLabel>Start Date</FormLabel>
                       <FormControl>
-                        <Input type="date" {...field} />
+                        <Input type="date" {...field} id="startDate" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -371,6 +363,7 @@ export default function CreateClassDialog({
                           type="number"
                           min="1"
                           {...field}
+                          id="durationInMonths"
                         />
                       </FormControl>
                       <FormMessage />
@@ -386,8 +379,9 @@ export default function CreateClassDialog({
                       <FormLabel>Session Duration (minutes)</FormLabel>
                       <FormControl>
                         <Input 
-                          type="number" 
+                          type="number"
                           {...field}
+                          id="defaultDuration"
                         />
                       </FormControl>
                       <FormMessage />
@@ -403,8 +397,9 @@ export default function CreateClassDialog({
                       <FormLabel>Buffer Time (minutes)</FormLabel>
                       <FormControl>
                         <Input 
-                          type="number" 
+                          type="number"
                           {...field}
+                          id="bufferTime"
                         />
                       </FormControl>
                       <FormMessage />
@@ -417,17 +412,18 @@ export default function CreateClassDialog({
             {step === 3 && (
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <FormLabel>Select Days</FormLabel>
+                  <FormLabel htmlFor="days">Select Days</FormLabel>
                   <div className="grid grid-cols-2 gap-2">
                     {WEEKDAYS.map((day) => (
                       <div key={day.value} className="flex items-center space-x-2">
                         <Checkbox
+                          id={`day-${day.value}`}
                           checked={selectedDays.includes(day.value)}
                           onCheckedChange={(checked) => 
                             handleDayChange(day.value, checked as boolean)
                           }
                         />
-                        <label>{day.label}</label>
+                        <label htmlFor={`day-${day.value}`}>{day.label}</label>
                       </div>
                     ))}
                   </div>
@@ -450,6 +446,7 @@ export default function CreateClassDialog({
                               <FormControl>
                                 <Input
                                   type="time"
+                                  id={`time-${day}`}
                                   value={
                                     field.value.find(t => t.day === day)?.time || "09:00"
                                   }
@@ -482,6 +479,7 @@ export default function CreateClassDialog({
                         <Input 
                           type="number"
                           {...field}
+                          id="monthlyPrice"
                         />
                       </FormControl>
                       <FormMessage />
@@ -497,7 +495,7 @@ export default function CreateClassDialog({
                       <FormLabel>Currency</FormLabel>
                       <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>
-                          <SelectTrigger>
+                          <SelectTrigger id="currency">
                             <SelectValue placeholder="Select currency" />
                           </SelectTrigger>
                         </FormControl>
@@ -522,6 +520,7 @@ export default function CreateClassDialog({
                         <Input 
                           type="number"
                           {...field}
+                          id="teacherHourlyRate"
                         />
                       </FormControl>
                       <FormMessage />
@@ -535,14 +534,18 @@ export default function CreateClassDialog({
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Students</FormLabel>
-                        <Select multiple onValueChange={field.onChange} value={field.value}>
+                        <Select 
+                          multiple 
+                          onValueChange={(value) => field.onChange(Array.isArray(value) ? value : [value])} 
+                          value={field.value}
+                        >
                           <FormControl>
-                            <SelectTrigger>
+                            <SelectTrigger id="selectedStudents">
                               <SelectValue placeholder="Select students" />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            {students.map((student) => (
+                            {Array.isArray(students) && students.map((student) => (
                               <SelectItem key={student.id} value={student.id}>
                                 {student.name}
                               </SelectItem>
