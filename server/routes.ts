@@ -272,13 +272,24 @@ export function registerRoutes(app: Express): Server {
 
   app.post("/api/classes", requireAdmin, async (req, res) => {
     try {
-      const { name, teacherId, pricePlanId, startDate, endDate, maxStudents, notes } = req.body;
+      const { 
+        name, 
+        teacherId, 
+        pricePlanId, 
+        startDate, 
+        defaultDuration,
+        schedule,
+        monthlyPrice,
+        currency,
+        teacherHourlyRate,
+        bufferTime 
+      } = req.body;
 
       // Validate required fields
-      if (!name || !teacherId || !pricePlanId) {
+      if (!name || !teacherId || !pricePlanId || !defaultDuration || !startDate || !schedule || !monthlyPrice || !currency || !teacherHourlyRate) {
         return res.status(400).json({
           error: "Missing required fields",
-          details: "Name, teacher, and price plan are required"
+          details: "All fields except buffer time are required"
         });
       }
 
@@ -307,10 +318,13 @@ export function registerRoutes(app: Express): Server {
           name,
           teacherId,
           pricePlanId,
-          startDate: startDate ? new Date(startDate) : null,
-          endDate: endDate ? new Date(endDate) : null,
-          maxStudents,
-          notes,
+          startDate: new Date(startDate),
+          defaultDuration,
+          schedule,
+          monthlyPrice,
+          currency,
+          teacherHourlyRate,
+          bufferTime,
           status: "active",
         })
         .returning();
