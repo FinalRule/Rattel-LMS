@@ -49,7 +49,7 @@ export default function TeacherDetailsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[725px]">
+      <DialogContent className="sm:max-w-[725px] h-[90vh]">
         <DialogHeader>
           <DialogTitle>{teacher.user.fullName}</DialogTitle>
           <DialogDescription>
@@ -57,7 +57,7 @@ export default function TeacherDetailsDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs defaultValue="overview" className="w-full">
+        <Tabs defaultValue="overview" className="w-full h-full">
           <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="classes">Classes</TabsTrigger>
@@ -65,132 +65,134 @@ export default function TeacherDetailsDialog({
             <TabsTrigger value="performance">Performance</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="overview" className="space-y-4">
-            <div className="grid gap-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Personal Information</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <dl className="grid grid-cols-2 gap-2 text-sm">
-                    <dt className="font-medium">Email</dt>
-                    <dd>{teacher.user.email}</dd>
-                    <dt className="font-medium">Phone</dt>
-                    <dd>{teacher.user.phone || 'Not provided'}</dd>
-                    <dt className="font-medium">WhatsApp</dt>
-                    <dd>{teacher.user.whatsapp || 'Not provided'}</dd>
-                    <dt className="font-medium">City</dt>
-                    <dd>{teacher.residenceCity}</dd>
-                    <dt className="font-medium">Timezone</dt>
-                    <dd>{teacher.user.timezone}</dd>
-                  </dl>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Teaching Profile</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <dl className="grid gap-2 text-sm">
-                    <dt className="font-medium">Bio</dt>
-                    <dd>{teacher.bio || 'No bio provided'}</dd>
-                    <dt className="font-medium">Base Rate</dt>
-                    <dd>${teacher.baseSalaryPerHour}/hour</dd>
-                    <dt className="font-medium">Rating</dt>
-                    <dd>{teacher.rating ? `${teacher.rating}/5` : 'No ratings yet'}</dd>
-                  </dl>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="classes" className="space-y-4">
-            {loadingStats ? (
-              <div className="flex items-center justify-center h-48">
-                <Loader2 className="h-8 w-8 animate-spin" />
-              </div>
-            ) : (
+          <div className="mt-4 overflow-y-auto pr-6" style={{ maxHeight: "calc(90vh - 180px)" }}>
+            <TabsContent value="overview" className="space-y-4">
               <div className="grid gap-4">
                 <Card>
                   <CardHeader>
-                    <CardTitle>Class Statistics</CardTitle>
+                    <CardTitle>Personal Information</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <dl className="grid grid-cols-2 gap-2 text-sm">
-                      <dt className="font-medium">Total Classes</dt>
-                      <dd>{teacherStats?.totalClasses}</dd>
-                      <dt className="font-medium">Active Classes</dt>
-                      <dd>{teacherStats?.activeClasses}</dd>
-                      <dt className="font-medium">Teaching Hours</dt>
-                      <dd>{teacherStats?.totalTeachingHours}</dd>
-                      <dt className="font-medium">Attendance Rate</dt>
-                      <dd>{teacherStats?.attendanceRate}%</dd>
+                      <dt className="font-medium">Email</dt>
+                      <dd>{teacher.user.email}</dd>
+                      <dt className="font-medium">Phone</dt>
+                      <dd>{teacher.user.phone || 'Not provided'}</dd>
+                      <dt className="font-medium">WhatsApp</dt>
+                      <dd>{teacher.user.whatsapp || 'Not provided'}</dd>
+                      <dt className="font-medium">City</dt>
+                      <dd>{teacher.residenceCity}</dd>
+                      <dt className="font-medium">Timezone</dt>
+                      <dd>{teacher.user.timezone}</dd>
+                    </dl>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Teaching Profile</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <dl className="grid gap-2 text-sm">
+                      <dt className="font-medium">Bio</dt>
+                      <dd>{teacher.bio || 'No bio provided'}</dd>
+                      <dt className="font-medium">Base Rate</dt>
+                      <dd>${teacher.baseSalaryPerHour}/hour</dd>
+                      <dt className="font-medium">Rating</dt>
+                      <dd>{teacher.rating ? `${teacher.rating}/5` : 'No ratings yet'}</dd>
                     </dl>
                   </CardContent>
                 </Card>
               </div>
-            )}
-          </TabsContent>
+            </TabsContent>
 
-          <TabsContent value="financial" className="space-y-4">
-            {loadingFinancials ? (
-              <div className="flex items-center justify-center h-48">
-                <Loader2 className="h-8 w-8 animate-spin" />
-              </div>
-            ) : (
-              <div className="grid gap-4">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Financial Overview</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <dl className="grid grid-cols-2 gap-2 text-sm">
-                      <dt className="font-medium">Current Month Earnings</dt>
-                      <dd>${financials?.currentMonthEarnings}</dd>
-                      <dt className="font-medium">Pending Payouts</dt>
-                      <dd>${financials?.pendingPayouts}</dd>
-                      <dt className="font-medium">Last Payout</dt>
-                      <dd>
-                        {financials?.lastPayout ? (
-                          <>
-                            ${financials.lastPayout.amount} on{" "}
-                            {new Date(financials.lastPayout.date).toLocaleDateString()}
-                          </>
-                        ) : (
-                          'No previous payouts'
-                        )}
-                      </dd>
-                    </dl>
-                  </CardContent>
-                </Card>
-              </div>
-            )}
-          </TabsContent>
+            <TabsContent value="classes" className="space-y-4">
+              {loadingStats ? (
+                <div className="flex items-center justify-center h-48">
+                  <Loader2 className="h-8 w-8 animate-spin" />
+                </div>
+              ) : (
+                <div className="grid gap-4">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Class Statistics</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <dl className="grid grid-cols-2 gap-2 text-sm">
+                        <dt className="font-medium">Total Classes</dt>
+                        <dd>{teacherStats?.totalClasses}</dd>
+                        <dt className="font-medium">Active Classes</dt>
+                        <dd>{teacherStats?.activeClasses}</dd>
+                        <dt className="font-medium">Teaching Hours</dt>
+                        <dd>{teacherStats?.totalTeachingHours}</dd>
+                        <dt className="font-medium">Attendance Rate</dt>
+                        <dd>{teacherStats?.attendanceRate}%</dd>
+                      </dl>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+            </TabsContent>
 
-          <TabsContent value="performance" className="space-y-4">
-            {loadingStats ? (
-              <div className="flex items-center justify-center h-48">
-                <Loader2 className="h-8 w-8 animate-spin" />
-              </div>
-            ) : (
-              <div className="grid gap-4">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Performance Metrics</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <dl className="grid grid-cols-2 gap-2 text-sm">
-                      <dt className="font-medium">Average Rating</dt>
-                      <dd>{teacherStats?.averageRating}/5</dd>
-                      <dt className="font-medium">Attendance Rate</dt>
-                      <dd>{teacherStats?.attendanceRate}%</dd>
-                    </dl>
-                  </CardContent>
-                </Card>
-              </div>
-            )}
-          </TabsContent>
+            <TabsContent value="financial" className="space-y-4">
+              {loadingFinancials ? (
+                <div className="flex items-center justify-center h-48">
+                  <Loader2 className="h-8 w-8 animate-spin" />
+                </div>
+              ) : (
+                <div className="grid gap-4">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Financial Overview</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <dl className="grid grid-cols-2 gap-2 text-sm">
+                        <dt className="font-medium">Current Month Earnings</dt>
+                        <dd>${financials?.currentMonthEarnings}</dd>
+                        <dt className="font-medium">Pending Payouts</dt>
+                        <dd>${financials?.pendingPayouts}</dd>
+                        <dt className="font-medium">Last Payout</dt>
+                        <dd>
+                          {financials?.lastPayout ? (
+                            <>
+                              ${financials.lastPayout.amount} on{" "}
+                              {new Date(financials.lastPayout.date).toLocaleDateString()}
+                            </>
+                          ) : (
+                            'No previous payouts'
+                          )}
+                        </dd>
+                      </dl>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="performance" className="space-y-4">
+              {loadingStats ? (
+                <div className="flex items-center justify-center h-48">
+                  <Loader2 className="h-8 w-8 animate-spin" />
+                </div>
+              ) : (
+                <div className="grid gap-4">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Performance Metrics</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <dl className="grid grid-cols-2 gap-2 text-sm">
+                        <dt className="font-medium">Average Rating</dt>
+                        <dd>{teacherStats?.averageRating}/5</dd>
+                        <dt className="font-medium">Attendance Rate</dt>
+                        <dd>{teacherStats?.attendanceRate}%</dd>
+                      </dl>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+            </TabsContent>
+          </div>
         </Tabs>
       </DialogContent>
     </Dialog>

@@ -92,7 +92,10 @@ export default function CreateTeacherDialog({
         </DialogHeader>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit((data) => createTeacher.mutate(data))} className="space-y-6">
+          <form
+            onSubmit={form.handleSubmit((data) => createTeacher.mutate(data))}
+            className="space-y-6 max-h-[60vh] overflow-y-auto pr-6"
+          >
             <div className="grid gap-4 py-4">
               <div className="grid grid-cols-2 gap-4">
                 <FormField
@@ -189,10 +192,12 @@ export default function CreateTeacherDialog({
                   <FormItem>
                     <FormLabel>Base Salary per Hour ($)</FormLabel>
                     <FormControl>
-                      <Input 
-                        {...field} 
-                        type="number" 
-                        onChange={e => field.onChange(parseFloat(e.target.value))}
+                      <Input
+                        {...field}
+                        type="number"
+                        onChange={(e) =>
+                          field.onChange(parseFloat(e.target.value))
+                        }
                       />
                     </FormControl>
                     <FormMessage />
@@ -238,10 +243,12 @@ export default function CreateTeacherDialog({
                   <FormItem>
                     <FormLabel>Buffer Time (minutes)</FormLabel>
                     <FormControl>
-                      <Input 
-                        {...field} 
-                        type="number" 
-                        onChange={e => field.onChange(parseInt(e.target.value))}
+                      <Input
+                        {...field}
+                        type="number"
+                        onChange={(e) =>
+                          field.onChange(parseInt(e.target.value))
+                        }
                       />
                     </FormControl>
                     <FormDescription>
@@ -267,7 +274,7 @@ export default function CreateTeacherDialog({
               />
             </div>
 
-            <div className="flex justify-end gap-3">
+            <div className="flex justify-end gap-3 sticky bottom-0 bg-background pt-4 border-t">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 Cancel
               </Button>
