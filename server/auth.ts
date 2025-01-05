@@ -6,7 +6,6 @@ import createMemoryStore from "memorystore";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import { users } from "@db/schema";
-import type { User } from "@db/schema";
 import { db } from "@db";
 import { eq } from "drizzle-orm";
 
@@ -33,8 +32,8 @@ const crypto = {
 // Extend express user object with our schema
 declare global {
   namespace Express {
-    interface User extends Omit<User, keyof User> {
-      id: string;  // Changed to string since we're using UUID
+    interface User {
+      id: string;
       email: string;
       role: string;
       fullName: string;
@@ -66,30 +65,38 @@ export function setupAuth(app: Express) {
   app.use(passport.session());
 
   passport.use(
-    new LocalStrategy({
-      usernameField: 'username',
-      passwordField: 'password'
-    }, async (username, password, done) => {
-      try {
-        // Try to find user by username or email
-        const [user] = await db
-          .select()
-          .from(users)
-          .where(eq(users.email, username))
-          .limit(1);
+    new LocalStrategy(
+      {
+        usernameField: "email",
+        passwordField: "password",
+      },
+      async (email, password, done) => {
+        try {
+          // Try to find user by email
+          const [user] = await db
+            .select()
+            .from(users)
+            .where(eq(users.email, email))
+            .limit(1);
 
-        if (!user) {
-          return done(null, false, { message: "Incorrect email." });
+          if (!user) {
+            return done(null, false, { message: "Incorrect email." });
+          }
+          const isMatch = await crypto.compare(password, user.password);
+          if (!isMatch) {
+            return done(null, false, { message: "Incorrect password." });
+          }
+          return done(null, {
+            id: user.id,
+            email: user.email,
+            role: user.role,
+            fullName: user.fullName,
+          });
+        } catch (err) {
+          return done(err);
         }
-        const isMatch = await crypto.compare(password, user.password);
-        if (!isMatch) {
-          return done(null, false, { message: "Incorrect password." });
-        }
-        return done(null, user);
-      } catch (err) {
-        return done(err);
       }
-    })
+    )
   );
 
   passport.serializeUser((user, done) => {
@@ -103,17 +110,28 @@ export function setupAuth(app: Express) {
         .from(users)
         .where(eq(users.id, id))
         .limit(1);
-      done(null, user);
+
+      if (!user) {
+        return done(null, false);
+      }
+
+      done(null, {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        fullName: user.fullName,
+      });
     } catch (err) {
       done(err);
     }
   });
 
+  // Register route with validation
   app.post("/api/register", async (req, res, next) => {
     try {
-      const { username, password, fullName, role = "student" } = req.body;
+      const { email, password, fullName, role = "student" } = req.body;
 
-      if (!username || !password || !fullName) {
+      if (!email || !password || !fullName) {
         return res.status(400).send("Email, password, and full name are required");
       }
 
@@ -121,7 +139,7 @@ export function setupAuth(app: Express) {
       const [existingUser] = await db
         .select()
         .from(users)
-        .where(eq(users.email, username))
+        .where(eq(users.email, email))
         .limit(1);
 
       if (existingUser) {
@@ -135,70 +153,82 @@ export function setupAuth(app: Express) {
       const [newUser] = await db
         .insert(users)
         .values({
-          email: username,
+          email,
           password: hashedPassword,
           fullName,
           role,
-          timezone: "UTC", // Default timezone
+          timezone: "UTC",
           isActive: true,
         })
         .returning();
 
       // Log the user in after registration
-      req.login(newUser, (err) => {
-        if (err) {
-          return next(err);
+      req.login(
+        {
+          id: newUser.id,
+          email: newUser.email,
+          role: newUser.role,
+          fullName: newUser.fullName,
+        },
+        (err) => {
+          if (err) {
+            return next(err);
+          }
+          return res.json({
+            message: "Registration successful",
+            user: {
+              id: newUser.id,
+              email: newUser.email,
+              role: newUser.role,
+              fullName: newUser.fullName,
+            },
+          });
         }
-        return res.json({
-          message: "Registration successful",
-          user: { 
-            id: newUser.id, 
-            email: newUser.email,
-            role: newUser.role,
-            fullName: newUser.fullName 
-          },
-        });
-      });
+      );
     } catch (error) {
       next(error);
     }
   });
 
+  // Login route
   app.post("/api/login", (req, res, next) => {
-    const { username, password } = req.body;
+    const { email, password } = req.body;
 
-    if (!username || !password) {
+    if (!email || !password) {
       return res.status(400).send("Email and password are required");
     }
 
-    const cb = (err: any, user: Express.User, info: IVerifyOptions) => {
-      if (err) {
-        return next(err);
-      }
-
-      if (!user) {
-        return res.status(400).send(info.message ?? "Login failed");
-      }
-
-      req.logIn(user, (err) => {
+    passport.authenticate(
+      "local",
+      (err: any, user: Express.User | false, info: IVerifyOptions) => {
         if (err) {
           return next(err);
         }
 
-        return res.json({
-          message: "Login successful",
-          user: { 
-            id: user.id, 
-            email: user.email,
-            role: user.role,
-            fullName: user.fullName
-          },
+        if (!user) {
+          return res.status(400).send(info.message ?? "Login failed");
+        }
+
+        req.login(user, (err) => {
+          if (err) {
+            return next(err);
+          }
+
+          return res.json({
+            message: "Login successful",
+            user: {
+              id: user.id,
+              email: user.email,
+              role: user.role,
+              fullName: user.fullName,
+            },
+          });
         });
-      });
-    };
-    passport.authenticate("local", cb)(req, res, next);
+      }
+    )(req, res, next);
   });
 
+  // Logout route
   app.post("/api/logout", (req, res) => {
     req.logout((err) => {
       if (err) {
@@ -208,6 +238,7 @@ export function setupAuth(app: Express) {
     });
   });
 
+  // Get current user route
   app.get("/api/user", (req, res) => {
     if (req.isAuthenticated()) {
       return res.json(req.user);
