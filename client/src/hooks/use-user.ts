@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useToast } from "@/hooks/use-toast";
+import { useState } from 'react';
 
 type LoginData = {
   email: string;
@@ -18,46 +19,129 @@ type User = {
   fullName: string | null;
 };
 
-type RequestResult = {
-  ok: true;
-  user?: User;
-} | {
-  ok: false;
+type AuthError = {
   message: string;
+  code?: string;
 };
 
-async function handleRequest(
-  url: string,
-  method: string,
-  body?: LoginData | RegisterData
-): Promise<RequestResult> {
-  try {
-    const response = await fetch(url, {
-      method,
-      headers: body ? { "Content-Type": "application/json" } : undefined,
-      body: body ? JSON.stringify(body) : undefined,
-      credentials: "include",
-    });
+export function useUser() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [authError, setAuthError] = useState<string | null>(null);
 
-    const data = await response.json();
+  const { data: user, error, isLoading } = useQuery<User | null>({
+    queryKey: ['/api/user'],
+    queryFn: fetchUser,
+    staleTime: Infinity,
+    retry: false,
+  });
 
-    if (!response.ok) {
-      return { 
-        ok: false, 
-        message: data.error || response.statusText 
-      };
-    }
+  const loginMutation = useMutation({
+    mutationFn: async (userData: LoginData) => {
+      const response = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(userData),
+        credentials: 'include',
+      });
 
-    return { 
-      ok: true, 
-      user: data.user 
-    };
-  } catch (e: any) {
-    return { 
-      ok: false, 
-      message: e.toString() 
-    };
-  }
+      const data = await response.json();
+
+      if (!response.ok) {
+        setAuthError(data.error || 'Login failed');
+        throw new Error(data.error || 'Login failed');
+      }
+
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.setQueryData(['/api/user'], data.user);
+      setAuthError(null);
+      toast({
+        title: "Success",
+        description: "Logged in successfully",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const logoutMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch('/api/logout', {
+        method: 'POST',
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Logout failed');
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.setQueryData(['/api/user'], null);
+      setAuthError(null);
+      toast({
+        title: "Success",
+        description: "Logged out successfully",
+      });
+    },
+  });
+
+  const registerMutation = useMutation({
+    mutationFn: async (userData: RegisterData) => {
+      const response = await fetch('/api/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(userData),
+        credentials: 'include',
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setAuthError(data.error || 'Registration failed');
+        throw new Error(data.error || 'Registration failed');
+      }
+
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.setQueryData(['/api/user'], data.user);
+      setAuthError(null);
+      toast({
+        title: "Success",
+        description: "Registration successful",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const clearAuthError = () => setAuthError(null);
+
+  return {
+    user,
+    isLoading,
+    error,
+    authError,
+    clearAuthError,
+    login: loginMutation.mutateAsync,
+    logout: logoutMutation.mutateAsync,
+    register: registerMutation.mutateAsync,
+  };
 }
 
 async function fetchUser(): Promise<User | null> {
@@ -78,76 +162,4 @@ async function fetchUser(): Promise<User | null> {
     console.error('Error fetching user:', error);
     return null;
   }
-}
-
-export function useUser() {
-  const queryClient = useQueryClient();
-  const { toast } = useToast();
-
-  const { data: user, error, isLoading } = useQuery<User | null>({
-    queryKey: ['/api/user'],
-    queryFn: fetchUser,
-    staleTime: Infinity,
-    retry: false,
-  });
-
-  const loginMutation = useMutation<RequestResult, Error, LoginData>({
-    mutationFn: (userData) => handleRequest('/api/login', 'POST', userData),
-    onSuccess: (result) => {
-      if (result.ok && result.user) {
-        queryClient.setQueryData(['/api/user'], result.user);
-        toast({
-          title: "Success",
-          description: "Logged in successfully",
-        });
-      } else {
-        toast({
-          title: "Error",
-          description: result.message,
-          variant: "destructive",
-        });
-      }
-    },
-  });
-
-  const logoutMutation = useMutation<RequestResult, Error>({
-    mutationFn: () => handleRequest('/api/logout', 'POST'),
-    onSuccess: (result) => {
-      if (result.ok) {
-        queryClient.setQueryData(['/api/user'], null);
-        toast({
-          title: "Success",
-          description: "Logged out successfully",
-        });
-      }
-    },
-  });
-
-  const registerMutation = useMutation<RequestResult, Error, RegisterData>({
-    mutationFn: (userData) => handleRequest('/api/register', 'POST', userData),
-    onSuccess: (result) => {
-      if (result.ok && result.user) {
-        queryClient.setQueryData(['/api/user'], result.user);
-        toast({
-          title: "Success",
-          description: "Registration successful",
-        });
-      } else {
-        toast({
-          title: "Error",
-          description: result.message,
-          variant: "destructive",
-        });
-      }
-    },
-  });
-
-  return {
-    user,
-    isLoading,
-    error,
-    login: loginMutation.mutateAsync,
-    logout: logoutMutation.mutateAsync,
-    register: registerMutation.mutateAsync,
-  };
 }

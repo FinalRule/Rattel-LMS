@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import AuthErrorModal from "@/components/auth/AuthErrorModal";
 
 const authSchema = z.object({
   email: z.string().email("Invalid email address").min(1, "Email is required"),
@@ -21,8 +22,7 @@ type AuthFormData = z.infer<typeof authSchema>;
 
 export default function AuthPage() {
   const [isLogin, setIsLogin] = useState(true);
-  const { login, register } = useUser();
-  const { toast } = useToast();
+  const { login, register, authError, clearAuthError } = useUser();
 
   const form = useForm<AuthFormData>({
     resolver: zodResolver(authSchema),
@@ -37,51 +37,25 @@ export default function AuthPage() {
   const onSubmit = async (data: AuthFormData) => {
     try {
       if (isLogin) {
-        const result = await login({
+        await login({
           email: data.email,
           password: data.password
         });
-
-        if (!result.ok) {
-          toast({
-            title: "Login Failed",
-            description: result.message || "Invalid email or password",
-            variant: "destructive",
-          });
-          return;
-        }
       } else {
         if (!data.fullName) {
-          toast({
-            title: "Registration Failed",
-            description: "Full name is required for registration",
-            variant: "destructive",
-          });
-          return;
+          throw new Error("Full name is required for registration");
         }
 
-        const result = await register({
+        await register({
           email: data.email,
           password: data.password,
           fullName: data.fullName,
           role: data.role || "student",
         });
-
-        if (!result.ok) {
-          toast({
-            title: "Registration Failed",
-            description: result.message || "Registration failed. Please try again.",
-            variant: "destructive",
-          });
-          return;
-        }
       }
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "An unexpected error occurred",
-        variant: "destructive",
-      });
+    } catch (error) {
+      // Error handling is now managed by the useUser hook and displayed in the modal
+      console.error(error);
     }
   };
 
@@ -186,6 +160,15 @@ export default function AuthPage() {
           </Form>
         </CardContent>
       </Card>
+
+      {/* Auth Error Modal */}
+      {authError && (
+        <AuthErrorModal
+          isOpen={!!authError}
+          onClose={clearAuthError}
+          error={authError}
+        />
+      )}
     </div>
   );
 }
