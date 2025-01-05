@@ -95,11 +95,10 @@ export default function CreateClassForm({ onClose }: { onClose: () => void }) {
     },
   });
 
-  // Separate next and submit handlers
+  // Handle step navigation
   const handleNext = async () => {
     const isValid = await form.trigger();
-    console.log("Form validation:", isValid);
-    console.log("Form data:", form.getValues());
+    console.log("Form validation:", isValid, form.formState.errors);
 
     if (isValid) {
       setCurrentStep(prev => prev + 1);
@@ -112,6 +111,7 @@ export default function CreateClassForm({ onClose }: { onClose: () => void }) {
     }
   };
 
+  // Handle form submission
   const onSubmit = async (data: StepOneData) => {
     // This will only be called when the form is actually being submitted
     console.log("Submitting data:", data);
@@ -237,30 +237,16 @@ export default function CreateClassForm({ onClose }: { onClose: () => void }) {
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            {currentStep < 4 ? (
-              // Next button (type="button" to prevent form submission)
-              <Button 
-                type="button"
-                onClick={handleNext}
-                disabled={createClassMutation.isPending}
-              >
-                {createClassMutation.isPending && (
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                )}
-                Next
-              </Button>
-            ) : (
-              // Submit button (only on last step)
-              <Button 
-                type="submit"
-                disabled={createClassMutation.isPending}
-              >
-                {createClassMutation.isPending && (
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                )}
-                Create Class
-              </Button>
-            )}
+            <Button 
+              type="button"
+              onClick={handleNext}
+              disabled={createClassMutation.isPending}
+            >
+              {createClassMutation.isPending && (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              )}
+              Next
+            </Button>
           </div>
         </form>
       </Form>
