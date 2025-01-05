@@ -99,9 +99,19 @@ export default function CreateClassForm({ onClose }: { onClose: () => void }) {
   const onSubmit = async (data: StepOneData) => {
     if (currentStep === 1) {
       try {
-        await createClassMutation.mutateAsync(data);
+              const isValid = await form.trigger();
+      if (isValid) {
+        setCurrentStep(2);  // Move to next step instead of submitting
+        console.log("Moving to step 2", data);  // Debug log
+      }
+        //await createClassMutation.mutateAsync(data);
       } catch (error) {
-        console.error('Error creating class:', error);
+      console.error('Validation error:', error);
+      toast({
+        title: "Error",
+        description: "Please fill in all required fields",
+        variant: "destructive",
+      });
       }
     }
   };
