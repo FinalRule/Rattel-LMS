@@ -75,7 +75,7 @@ export const subjects = pgTable("subjects", {
   category: text("category"),
   difficultyLevel: text("difficulty_level"),
   availableDurations: integer("available_durations").array(),
-  sessionsPerMonth: integer("sessions_per_month"),
+  sessionsPerMonth: integer("sessions_per_month").array(),
   defaultBufferTime: integer("default_buffer_time"),
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
