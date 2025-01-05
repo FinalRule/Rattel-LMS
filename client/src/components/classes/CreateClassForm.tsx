@@ -44,6 +44,7 @@ export default function CreateClassForm({ onClose }: { onClose: () => void }) {
       teacherId: "",
       pricePlanId: "",
     },
+    mode: "onSubmit",
   });
 
   // Fetch teachers with error handling
@@ -73,11 +74,12 @@ export default function CreateClassForm({ onClose }: { onClose: () => void }) {
   // Create class mutation
   const createClassMutation = useMutation({
     mutationFn: async (data: StepOneData) => {
+      const token = localStorage.getItem('ACCESS_TOKEN');
       const response = await fetch('/api/classes', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('ACCESS_TOKEN')}`,
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
         },
         body: JSON.stringify(data),
       });
@@ -106,20 +108,9 @@ export default function CreateClassForm({ onClose }: { onClose: () => void }) {
     },
   });
 
-  const handleNext = async () => {
+  const onSubmit = async (data: StepOneData) => {
     try {
-      const isValid = await form.trigger();
-      if (!isValid) {
-        console.log('Form errors:', form.formState.errors);
-        return toast({
-          title: "Validation Error",
-          description: "Please fill in all required fields correctly",
-          variant: "destructive",
-        });
-      }
-
-      const formData = form.getValues();
-      await createClassMutation.mutateAsync(formData);
+      await createClassMutation.mutateAsync(data);
     } catch (error) {
       console.error('Error creating class:', error);
     }
@@ -154,15 +145,15 @@ export default function CreateClassForm({ onClose }: { onClose: () => void }) {
       </div>
 
       <Form {...form}>
-        <form onSubmit={(e) => { e.preventDefault(); handleNext(); }} className="space-y-6">
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
           <FormField
             control={form.control}
             name="name"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Class Name</FormLabel>
+                <FormLabel htmlFor="name">Class Name</FormLabel>
                 <FormControl>
-                  <Input {...field} placeholder="Enter class name" />
+                  <Input id="name" {...field} placeholder="Enter class name" />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -174,10 +165,10 @@ export default function CreateClassForm({ onClose }: { onClose: () => void }) {
             name="teacherId"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Teacher</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value}>
+                <FormLabel htmlFor="teacherId">Teacher</FormLabel>
+                <Select onValueChange={field.onChange} value={field.value || ""}>
                   <FormControl>
-                    <SelectTrigger>
+                    <SelectTrigger id="teacherId">
                       <SelectValue placeholder="Select a teacher" />
                     </SelectTrigger>
                   </FormControl>
@@ -199,10 +190,10 @@ export default function CreateClassForm({ onClose }: { onClose: () => void }) {
             name="pricePlanId"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Price Plan</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value}>
+                <FormLabel htmlFor="pricePlanId">Price Plan</FormLabel>
+                <Select onValueChange={field.onChange} value={field.value || ""}>
                   <FormControl>
-                    <SelectTrigger>
+                    <SelectTrigger id="pricePlanId">
                       <SelectValue placeholder="Select a price plan" />
                     </SelectTrigger>
                   </FormControl>
@@ -223,10 +214,10 @@ export default function CreateClassForm({ onClose }: { onClose: () => void }) {
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit">
-              {createClassMutation.isPending ? (
+            <Button type="submit" disabled={createClassMutation.isPending}>
+              {createClassMutation.isPending && (
                 <Loader2 className="h-4 w-4 animate-spin mr-2" />
-              ) : null}
+              )}
               Next
             </Button>
           </div>
