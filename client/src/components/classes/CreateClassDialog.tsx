@@ -78,6 +78,11 @@ export default function CreateClassDialog({
   const [step, setStep] = useState(1);
   const [selectedDays, setSelectedDays] = useState<string[]>([]);
 
+  // Check user authentication
+  const { data: user } = useQuery({
+    queryKey: ["/api/user"],
+  });
+
   const form = useForm<CreateClassFormData>({
     resolver: zodResolver(createClassSchema),
     defaultValues: {
@@ -101,18 +106,22 @@ export default function CreateClassDialog({
 
   const { data: teachers } = useQuery<SelectTeacher[]>({
     queryKey: ["/api/teachers"],
+    enabled: !!user,
   });
 
   const { data: pricePlans } = useQuery<SelectPricePlan[]>({
     queryKey: ["/api/price-plans"],
+    enabled: !!user,
   });
 
   const { data: subjects } = useQuery<SelectSubject[]>({
     queryKey: ["/api/subjects"],
+    enabled: !!user,
   });
 
   const { data: students } = useQuery({
     queryKey: ["/api/students"],
+    enabled: !!user,
   });
 
   const createClassMutation = useMutation({
@@ -144,6 +153,14 @@ export default function CreateClassDialog({
       setStep(1);
     },
     onError: (error) => {
+      if (error.message.includes("401")) {
+        toast({
+          title: "Authentication Required",
+          description: "Please log in to create a class",
+          variant: "destructive",
+        });
+        return;
+      }
       toast({
         title: "Error",
         description: error.message,
@@ -152,9 +169,19 @@ export default function CreateClassDialog({
     },
   });
 
-  const validateCurrentStep = () => {
+  const validateCurrentStep = async () => {
     let isValid = true;
     const formData = form.getValues();
+
+    // Check authentication first
+    if (!user) {
+      toast({
+        title: "Authentication Required",
+        description: "Please log in to create a class",
+        variant: "destructive",
+      });
+      return false;
+    }
 
     if (step === 1) {
       isValid = Boolean(
@@ -174,6 +201,14 @@ export default function CreateClassDialog({
         formData.schedule.days.length > 0 &&
         formData.schedule.times.length > 0
       );
+    }
+
+    if (!isValid) {
+      toast({
+        title: "Validation Error",
+        description: "Please fill in all required fields",
+        variant: "destructive",
+      });
     }
 
     return isValid;
@@ -205,8 +240,18 @@ export default function CreateClassDialog({
   };
 
   const onSubmit = async (data: CreateClassFormData) => {
+    if (!user) {
+      toast({
+        title: "Authentication Required",
+        description: "Please log in to create a class",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (step < 4) {
-      if (validateCurrentStep()) {
+      const isValid = await validateCurrentStep();
+      if (isValid) {
         setStep(step + 1);
       }
       return;
