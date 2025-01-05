@@ -22,8 +22,10 @@ import { Loader2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import SubjectList from "@/components/subjects/SubjectList";
 import TeacherList from "@/components/teachers/TeacherList";
+import StudentList from "@/components/students/StudentList";
 import CreateSubjectDialog from "@/components/subjects/CreateSubjectDialog";
 import CreateTeacherDialog from "@/components/teachers/CreateTeacherDialog";
+import CreateStudentDialog from "@/components/students/CreateStudentDialog";
 
 interface AttendanceStats {
   sessionId: string;
@@ -42,6 +44,7 @@ export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState("overview");
   const [isCreateSubjectOpen, setIsCreateSubjectOpen] = useState(false);
   const [isCreateTeacherOpen, setIsCreateTeacherOpen] = useState(false);
+  const [isCreateStudentOpen, setIsCreateStudentOpen] = useState(false);
 
   const { data: attendanceStats, isLoading: loadingAttendance } = useQuery<AttendanceStats[]>({
     queryKey: ["/api/analytics/attendance"],
@@ -67,6 +70,7 @@ export default function AdminDashboard() {
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="teachers">Teachers</TabsTrigger>
+          <TabsTrigger value="students">Students</TabsTrigger>
           <TabsTrigger value="subjects">Subjects</TabsTrigger>
           <TabsTrigger value="attendance">Attendance</TabsTrigger>
           <TabsTrigger value="financial">Financial</TabsTrigger>
@@ -118,6 +122,21 @@ export default function AdminDashboard() {
           <CreateSubjectDialog 
             open={isCreateSubjectOpen} 
             onOpenChange={setIsCreateSubjectOpen} 
+          />
+        </TabsContent>
+
+        <TabsContent value="students" className="space-y-4">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-2xl font-bold">Student Management</h2>
+            <Button onClick={() => setIsCreateStudentOpen(true)}>
+              <Plus className="w-4 h-4 mr-2" />
+              Add Student
+            </Button>
+          </div>
+          <StudentList />
+          <CreateStudentDialog 
+            open={isCreateStudentOpen} 
+            onOpenChange={setIsCreateStudentOpen} 
           />
         </TabsContent>
 

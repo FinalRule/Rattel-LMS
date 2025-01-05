@@ -25,7 +25,7 @@ export const paymentTypes = ["student_payment", "teacher_payout"] as const;
 export const users = pgTable("users", {
   id: uuid("id").defaultRandom().primaryKey(),
   email: text("email").unique().notNull(),
-  password: text("password_hash").notNull(),  // Changed to match SQL schema
+  password: text("password").notNull(),
   role: text("role", { enum: userRoles }).notNull(),
   fullName: text("full_name").notNull(),
   dateOfBirth: date("date_of_birth"),
@@ -57,8 +57,8 @@ export const teachers = pgTable("teachers", {
 // Students extension
 export const students = pgTable("students", {
   userId: uuid("user_id").references(() => users.id).primaryKey(),
-  nationality: text("nationality"),
-  countryOfResidence: text("country_of_residence"),
+  nationality: text("nationality").notNull(),
+  countryOfResidence: text("country_of_residence").notNull(),
   parentName: text("parent_name"),
   paymentMethod: jsonb("payment_method"),
   learningGoals: text("learning_goals"),
@@ -81,14 +81,6 @@ export const subjects = pgTable("subjects", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow()
 });
-
-// Teacher-Subject relationship
-export const teacherSubjects = pgTable("teacher_subjects", {
-  teacherId: uuid("teacher_id").references(() => teachers.userId),
-  subjectId: uuid("subject_id").references(() => subjects.id)
-}, (table) => ({
-  pk: primaryKey(table.teacherId, table.subjectId)
-}));
 
 // Price Plans
 export const pricePlans = pgTable("price_plans", {
@@ -153,7 +145,7 @@ export const sessions = pgTable("sessions", {
   recordingUrl: text("recording_url"),
   teacherNotes: text("teacher_notes"),
   studentNotes: text("student_notes"),
-  studentPoints: integer("student_points"), // Removed check constraint as it's not supported
+  studentPoints: integer("student_points"),
   isMakeupSession: boolean("is_makeup_session").default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow()
 });
@@ -162,7 +154,7 @@ export const sessions = pgTable("sessions", {
 export const sessionAttendance = pgTable("session_attendance", {
   sessionId: uuid("session_id").references(() => sessions.id),
   userId: uuid("user_id").references(() => users.id),
-  status: text("status", { enum: attendanceStatuses }),
+  status: text("status", { enum: attendanceStatuses }).notNull(),
   joinTime: timestamp("join_time", { withTimezone: true }),
   leaveTime: timestamp("leave_time", { withTimezone: true })
 }, (table) => ({
@@ -200,7 +192,19 @@ export const teacherRelations = relations(teachers, ({ one, many }) => ({
     references: [users.id]
   }),
   subjects: many(teacherSubjects),
-  classes: many(classes, { relationName: "teacher" })
+  classes: many(classes)
+}));
+
+export const studentRelations = relations(students, ({ one, many }) => ({
+  user: one(users, {
+    fields: [students.userId],
+    references: [users.id]
+  }),
+  enrollments: many(classEnrollments),
+  attendance: many(sessionAttendance, {
+    fields: [students.userId],
+    references: [sessionAttendance.userId]
+  })
 }));
 
 export const subjectRelations = relations(subjects, ({ many }) => ({
@@ -226,17 +230,21 @@ export const classRelations = relations(classes, ({ one, many }) => ({
   sessions: many(sessions)
 }));
 
+
+// Teacher-Subject relationship
+export const teacherSubjects = pgTable("teacher_subjects", {
+  teacherId: uuid("teacher_id").references(() => teachers.userId),
+  subjectId: uuid("subject_id").references(() => subjects.id)
+}, (table) => ({
+  pk: primaryKey(table.teacherId, table.subjectId)
+}));
+
 // Types
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
 
 export type Teacher = typeof teachers.$inferSelect;
 export type NewTeacher = typeof teachers.$inferInsert;
-
-// Add SelectTeacher type that includes user information
-export type SelectTeacher = Teacher & {
-  user: User;
-};
 
 export type Student = typeof students.$inferSelect;
 export type NewStudent = typeof students.$inferInsert;
@@ -247,11 +255,21 @@ export type NewSubject = typeof subjects.$inferInsert;
 export type Class = typeof classes.$inferSelect;
 export type NewClass = typeof classes.$inferInsert;
 
+export type Payment = typeof payments.$inferSelect;
+export type NewPayment = typeof payments.$inferInsert;
+
 export type Session = typeof sessions.$inferSelect;
 export type NewSession = typeof sessions.$inferInsert;
 
-export type Payment = typeof payments.$inferSelect;
-export type NewPayment = typeof payments.$inferInsert;
+
+// Extended types with relations
+export type SelectTeacher = Teacher & {
+  user: User;
+};
+
+export type SelectStudent = Student & {
+  user: User;
+};
 
 // Schemas
 export const insertUserSchema = createInsertSchema(users);
@@ -277,5 +295,10 @@ export const selectPaymentSchema = createSelectSchema(payments);
 
 // Add TeacherWithUser schema
 export const selectTeacherWithUserSchema = createSelectSchema(teachers).extend({
+  user: selectUserSchema
+});
+
+// Add StudentWithUser schema
+export const selectStudentWithUserSchema = createSelectSchema(students).extend({
   user: selectUserSchema
 });

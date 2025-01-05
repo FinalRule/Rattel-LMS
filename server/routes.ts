@@ -12,8 +12,10 @@ import {
   sessionAttendance,
   insertUserSchema,
   insertTeacherSchema,
+  students,
+  classEnrollments,
 } from "@db/schema";
-import { eq, count } from "drizzle-orm";
+import { eq, count, sql, and, desc } from "drizzle-orm";
 import { scrypt, randomBytes } from "crypto";
 import { promisify } from "util";
 
@@ -58,9 +60,9 @@ export function registerRoutes(app: Express): Server {
 
   app.post("/api/teachers", requireAdmin, async (req, res) => {
     try {
-      const { 
-        email, 
-        password, 
+      const {
+        email,
+        password,
         fullName,
         phone,
         whatsapp,
@@ -86,9 +88,9 @@ export function registerRoutes(app: Express): Server {
       });
 
       if (!userResult.success) {
-        return res.status(400).json({ 
-          error: "Invalid input", 
-          details: userResult.error.issues 
+        return res.status(400).json({
+          error: "Invalid input",
+          details: userResult.error.issues
         });
       }
 
@@ -283,6 +285,236 @@ export function registerRoutes(app: Express): Server {
       .from(payments);
 
     res.json(financialStats);
+  });
+
+  // Students
+  app.get("/api/students", async (req, res) => {
+    try {
+      const allStudents = await db.query.students.findMany({
+        with: {
+          user: true,
+        },
+      });
+      res.json(allStudents);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/students", requireAdmin, async (req, res) => {
+    try {
+      const {
+        email,
+        password,
+        fullName,
+        phone,
+        whatsapp,
+        timezone,
+        nationality,
+        countryOfResidence,
+        parentName,
+        learningGoals,
+        notes,
+      } = req.body;
+
+      // Validate user input
+      const userResult = insertUserSchema.safeParse({
+        email,
+        password,
+        fullName,
+        phone,
+        whatsapp,
+        timezone,
+        role: "student",
+      });
+
+      if (!userResult.success) {
+        return res.status(400).json({
+          error: "Invalid input",
+          details: userResult.error.issues,
+        });
+      }
+
+      // Check if user already exists
+      const existingUser = await db.query.users.findFirst({
+        where: eq(users.email, email),
+      });
+
+      if (existingUser) {
+        return res.status(400).json({ error: "Email already exists" });
+      }
+
+      // Hash the password
+      const hashedPassword = await crypto.hash(password);
+
+      // Create user and student in a transaction
+      const [student] = await db.transaction(async (tx) => {
+        // Create user first
+        const [newUser] = await tx
+          .insert(users)
+          .values({
+            email,
+            password: hashedPassword,
+            fullName,
+            phone,
+            whatsapp,
+            timezone,
+            role: "student",
+          })
+          .returning();
+
+        // Create student profile
+        const [newStudent] = await tx
+          .insert(students)
+          .values({
+            userId: newUser.id,
+            nationality,
+            countryOfResidence,
+            parentName,
+            learningGoals,
+            notes,
+          })
+          .returning();
+
+        return [{ ...newStudent, user: newUser }];
+      });
+
+      res.json(student);
+    } catch (error: any) {
+      console.error("Error creating student:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Student Stats
+  app.get("/api/students/:id/stats", requireAdmin, async (req, res) => {
+    try {
+      const studentId = req.params.id;
+
+      // Get class enrollments
+      const enrollments = await db
+        .select({
+          classId: classEnrollments.classId,
+        })
+        .from(classEnrollments)
+        .where(eq(classEnrollments.studentId, studentId));
+
+      const classIds = enrollments.map(e => e.classId);
+
+      // Get sessions for these classes
+      const studentSessions = await db
+        .select()
+        .from(sessions)
+        .where(
+          sql`${sessions.classId} IN ${classIds}`
+        );
+
+      // Calculate stats
+      const totalClasses = classIds.length;
+      const activeClasses = (await db
+        .select()
+        .from(classes)
+        .where(
+          and(
+            sql`${classes.id} IN ${classIds}`,
+            eq(classes.status, "active")
+          )
+        )).length;
+
+      // Get attendance records
+      const attendance = await db
+        .select()
+        .from(sessionAttendance)
+        .where(eq(sessionAttendance.userId, studentId));
+
+      const attendanceRate = attendance.length > 0
+        ? (attendance.filter(a => a.status === "present").length / attendance.length) * 100
+        : 0;
+
+      const totalLearningHours = studentSessions.reduce(
+        (sum, session) => sum + (session.actualDuration || session.plannedDuration),
+        0
+      ) / 60;
+
+      const averagePerformance = studentSessions.reduce(
+        (sum, session) => sum + (session.studentPoints || 0),
+        0
+      ) / (studentSessions.length || 1);
+
+      res.json({
+        totalClasses,
+        activeClasses,
+        averageAttendance: Math.round(attendanceRate),
+        totalLearningHours: Math.round(totalLearningHours),
+        averagePerformance: Math.round(averagePerformance * 10) / 10,
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Student Financials
+  app.get("/api/students/:id/financials", requireAdmin, async (req, res) => {
+    try {
+      const studentId = req.params.id;
+      const currentDate = new Date();
+      const currentMonth = currentDate.getMonth() + 1;
+      const currentYear = currentDate.getFullYear();
+
+      // Get current month payments
+      const currentMonthPayments = await db
+        .select({
+          amount: sql<number>`SUM(${payments.amount})`,
+        })
+        .from(payments)
+        .where(
+          and(
+            eq(payments.userId, studentId),
+            eq(payments.month, currentMonth),
+            eq(payments.year, currentYear),
+            eq(payments.status, "completed")
+          )
+        );
+
+      // Get outstanding balance (pending payments)
+      const outstandingBalance = await db
+        .select({
+          amount: sql<number>`SUM(${payments.amount})`,
+        })
+        .from(payments)
+        .where(
+          and(
+            eq(payments.userId, studentId),
+            eq(payments.status, "pending")
+          )
+        );
+
+      // Get last completed payment
+      const [lastPayment] = await db
+        .select()
+        .from(payments)
+        .where(
+          and(
+            eq(payments.userId, studentId),
+            eq(payments.status, "completed")
+          )
+        )
+        .orderBy(desc(payments.completedAt))
+        .limit(1);
+
+      res.json({
+        currentMonthPayments: currentMonthPayments[0]?.amount || 0,
+        outstandingBalance: outstandingBalance[0]?.amount || 0,
+        lastPayment: lastPayment
+          ? {
+              amount: lastPayment.amount,
+              date: lastPayment.completedAt,
+            }
+          : null,
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
   });
 
   const httpServer = createServer(app);
