@@ -1,4 +1,4 @@
-import type { Express } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { db } from "@db";
@@ -17,36 +17,31 @@ import {
   pricePlans,
 } from "@db/schema";
 import { eq, count, sql, and, desc } from "drizzle-orm";
-import { scrypt, randomBytes } from "crypto";
-import { promisify } from "util";
 
-const scryptAsync = promisify(scrypt);
+// Authentication middleware
+const requireAuth = (req: Request, res: Response, next: NextFunction) => {
+  if (!req.isAuthenticated()) {
+    return res.status(401).json({ error: "Authentication required" });
+  }
+  next();
+};
 
-const crypto = {
-  hash: async (password: string) => {
-    const salt = randomBytes(16).toString("hex");
-    const buf = (await scryptAsync(password, salt, 64)) as Buffer;
-    return `${buf.toString("hex")}.${salt}`;
-  },
+const requireAdmin = (req: Request, res: Response, next: NextFunction) => {
+  if (!req.isAuthenticated()) {
+    return res.status(401).json({ error: "Authentication required" });
+  }
+  if (req.user.role !== "admin") {
+    return res.status(403).json({ error: "Admin privileges required" });
+  }
+  next();
 };
 
 export function registerRoutes(app: Express): Server {
   // Auth routes
   setupAuth(app);
 
-  // Middleware to check if user is authenticated and is admin
-  const requireAdmin = (req: any, res: any, next: any) => {
-    if (!req.isAuthenticated()) {
-      return res.status(401).send("Authentication required");
-    }
-    if (req.user.role !== "admin") {
-      return res.status(403).send("Admin privileges required");
-    }
-    next();
-  };
-
-  // Price Plans
-  app.get("/api/price-plans", async (req, res) => {
+  // Price Plans - require auth for all operations
+  app.get("/api/price-plans", requireAuth, async (req, res) => {
     try {
       const allPricePlans = await db.query.pricePlans.findMany({
         with: {
@@ -86,8 +81,8 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Teachers
-  app.get("/api/teachers", async (req, res) => {
+  // Teachers - require auth for all operations
+  app.get("/api/teachers", requireAuth, async (req, res) => {
     try {
       const allTeachers = await db.query.teachers.findMany({
         with: {
@@ -189,8 +184,8 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Subjects
-  app.get("/api/subjects", async (req, res) => {
+  // Subjects - require auth for all operations
+  app.get("/api/subjects", requireAuth, async (req, res) => {
     const allSubjects = await db.select().from(subjects);
     res.json(allSubjects);
   });
@@ -246,8 +241,8 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Classes
-  app.get("/api/classes", async (req, res) => {
+  // Classes - require auth for all operations
+  app.get("/api/classes", requireAuth, async (req, res) => {
     try {
       const allClasses = await db.query.classes.findMany({
         with: {
@@ -380,19 +375,19 @@ export function registerRoutes(app: Express): Server {
   });
 
 
-  // Sessions
-  app.get("/api/sessions", async (req, res) => {
+  // Sessions - require auth for all operations
+  app.get("/api/sessions", requireAuth, async (req, res) => {
     const allSessions = await db.select().from(sessions);
     res.json(allSessions);
   });
 
-  app.post("/api/sessions", async (req, res) => {
+  app.post("/api/sessions", requireAuth, async (req, res) => {
     const session = await db.insert(sessions).values(req.body).returning();
     res.json(session[0]);
   });
 
-  // Session Attendance
-  app.patch("/api/sessions/:id/attendance", async (req, res) => {
+  // Session Attendance - require auth for all operations
+  app.patch("/api/sessions/:id/attendance", requireAuth, async (req, res) => {
     const { id } = req.params;
     const { userId, status, joinTime, leaveTime } = req.body;
 
@@ -414,19 +409,19 @@ export function registerRoutes(app: Express): Server {
     res.json(attendance[0]);
   });
 
-  // Payments
-  app.get("/api/payments", async (req, res) => {
+  // Payments - require auth for all operations
+  app.get("/api/payments", requireAuth, async (req, res) => {
     const allPayments = await db.select().from(payments);
     res.json(allPayments);
   });
 
-  app.post("/api/payments", async (req, res) => {
+  app.post("/api/payments", requireAuth, async (req, res) => {
     const payment = await db.insert(payments).values(req.body).returning();
     res.json(payment[0]);
   });
 
-  // Analytics endpoints
-  app.get("/api/analytics/attendance", async (req, res) => {
+  // Analytics endpoints - require auth for all operations
+  app.get("/api/analytics/attendance", requireAuth, async (req, res) => {
     const attendanceStats = await db
       .select({
         sessionId: sessionAttendance.sessionId,
@@ -439,7 +434,7 @@ export function registerRoutes(app: Express): Server {
     res.json(attendanceStats);
   });
 
-  app.get("/api/analytics/financial", async (req, res) => {
+  app.get("/api/analytics/financial", requireAuth, async (req, res) => {
     const financialStats = await db
       .select({
         totalAmount: payments.amount,
@@ -452,8 +447,8 @@ export function registerRoutes(app: Express): Server {
     res.json(financialStats);
   });
 
-  // Students
-  app.get("/api/students", async (req, res) => {
+  // Students - require auth for all operations
+  app.get("/api/students", requireAuth, async (req, res) => {
     try {
       const allStudents = await db.query.students.findMany({
         with: {
@@ -551,8 +546,8 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Student Stats
-  app.get("/api/students/:id/stats", requireAdmin, async (req, res) => {
+  // Student Stats - require auth for all operations
+  app.get("/api/students/:id/stats", requireAuth, async (req, res) => {
     try {
       const studentId = req.params.id;
 
@@ -618,8 +613,8 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Student Financials
-  app.get("/api/students/:id/financials", requireAdmin, async (req, res) => {
+  // Student Financials - require auth for all operations
+  app.get("/api/students/:id/financials", requireAuth, async (req, res) => {
     try {
       const studentId = req.params.id;
       const currentDate = new Date();
@@ -685,3 +680,15 @@ export function registerRoutes(app: Express): Server {
   const httpServer = createServer(app);
   return httpServer;
 }
+
+const crypto = {
+  hash: async (password: string) => {
+    const salt = randomBytes(16).toString("hex");
+    const buf = (await scryptAsync(password, salt, 64)) as Buffer;
+    return `${buf.toString("hex")}.${salt}`;
+  },
+};
+
+const scryptAsync = promisify(scrypt);
+import { scrypt, randomBytes } from "crypto";
+import { promisify } from "util";
