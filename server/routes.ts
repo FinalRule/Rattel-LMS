@@ -17,20 +17,29 @@ import {
 } from "@db/schema";
 import { eq, count, sql, and, desc } from "drizzle-orm";
 
-// Authentication middleware
+// Authentication middleware with improved error handling
 const requireAuth = (req: Request, res: Response, next: NextFunction) => {
   if (!req.user) {
-    return res.status(401).json({ error: "Authentication required" });
+    return res.status(401).json({ 
+      error: "Authentication required",
+      message: "Please log in to access this resource"
+    });
   }
   next();
 };
 
 const requireAdmin = (req: Request, res: Response, next: NextFunction) => {
   if (!req.user) {
-    return res.status(401).json({ error: "Authentication required" });
+    return res.status(401).json({ 
+      error: "Authentication required",
+      message: "Please log in to access this resource"
+    });
   }
   if (req.user.role !== "admin") {
-    return res.status(403).json({ error: "Admin privileges required" });
+    return res.status(403).json({ 
+      error: "Access denied",
+      message: "This action requires administrator privileges"
+    });
   }
   next();
 };
@@ -49,10 +58,7 @@ export function registerRoutes(app: Express): Server {
       return next();
     }
 
-    if (!req.user) {
-      return res.status(401).json({ error: "Authentication required" });
-    }
-    next();
+    requireAuth(req, res, next);
   });
 
   // Price Plans routes - all require authentication

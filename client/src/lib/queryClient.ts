@@ -11,12 +11,11 @@ export const queryClient = new QueryClient({
           headers: {
             ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
           },
-          credentials: "include",
         });
 
         if (!res.ok) {
           if (res.status === 401) {
-            // Clear token and throw error if unauthorized
+            // Clear token and redirect to login if unauthorized
             localStorage.removeItem('ACCESS_TOKEN');
             throw new Error('Authentication required');
           }

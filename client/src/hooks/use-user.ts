@@ -1,7 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useToast } from "@/hooks/use-toast";
 import { useState } from 'react';
-import { apiRequest } from '@/lib/api';
 
 type LoginData = {
   email: string;
@@ -29,7 +28,22 @@ export function useUser() {
     queryKey: ['/api/user'],
     queryFn: async () => {
       try {
-        return await apiRequest('/api/user');
+        const token = localStorage.getItem('ACCESS_TOKEN');
+        const response = await fetch('/api/user', {
+          headers: {
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+          },
+        });
+
+        if (!response.ok) {
+          if (response.status === 401) {
+            localStorage.removeItem('ACCESS_TOKEN');
+            return null;
+          }
+          throw new Error(await response.text());
+        }
+
+        return response.json();
       } catch (error) {
         if ((error as Error).message.includes('401')) {
           return null;
@@ -37,17 +51,25 @@ export function useUser() {
         throw error;
       }
     },
-    staleTime: Infinity,
-    retry: false,
   });
 
   const loginMutation = useMutation({
     mutationFn: async (userData: LoginData) => {
       try {
-        const data = await apiRequest('/api/login', {
+        const response = await fetch('/api/login', {
           method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
           body: JSON.stringify(userData),
         });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(errorText);
+        }
+
+        const data = await response.json();
 
         // Store the token
         if (data.token) {
@@ -79,11 +101,10 @@ export function useUser() {
 
   const logoutMutation = useMutation({
     mutationFn: async () => {
-      await apiRequest('/api/logout', { method: 'POST' });
       localStorage.removeItem('ACCESS_TOKEN');
+      queryClient.setQueryData(['/api/user'], null);
     },
     onSuccess: () => {
-      queryClient.setQueryData(['/api/user'], null);
       setAuthError(null);
       toast({
         title: "Success",
@@ -95,10 +116,20 @@ export function useUser() {
   const registerMutation = useMutation({
     mutationFn: async (userData: RegisterData) => {
       try {
-        const data = await apiRequest('/api/register', {
+        const response = await fetch('/api/register', {
           method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
           body: JSON.stringify(userData),
         });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(errorText);
+        }
+
+        const data = await response.json();
 
         // Store the token if provided with registration
         if (data.token) {
