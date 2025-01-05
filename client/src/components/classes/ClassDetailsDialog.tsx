@@ -34,7 +34,7 @@ interface ClassFinancials {
   totalRevenue: number;
   teacherPayouts: number;
   profitMargin: number;
-  monthlyBreakdown: Array<{
+  monthlyBreakdown?: Array<{
     month: string;
     revenue: number;
     expenses: number;
@@ -54,6 +54,37 @@ export default function ClassDetailsDialog({
     queryKey: ["/api/classes", classData.id, "financials"],
     enabled: !!classData.id,
   });
+
+  const renderFinancialsOverview = () => {
+    if (!financials) return null;
+
+    return (
+      <dl className="grid grid-cols-2 gap-2 text-sm">
+        <dt className="font-medium">Total Revenue</dt>
+        <dd>{classData.currency} {financials.totalRevenue}</dd>
+        <dt className="font-medium">Teacher Payouts</dt>
+        <dd>{classData.currency} {financials.teacherPayouts}</dd>
+        <dt className="font-medium">Profit Margin</dt>
+        <dd>{financials.profitMargin}%</dd>
+      </dl>
+    );
+  };
+
+  const renderMonthlyBreakdown = () => {
+    if (!financials?.monthlyBreakdown?.length) return null;
+
+    return (
+      <div className="space-y-2">
+        {financials.monthlyBreakdown.map((month) => (
+          <div key={month.month} className="grid grid-cols-3 text-sm">
+            <span>{month.month}</span>
+            <span>Revenue: {classData.currency} {month.revenue}</span>
+            <span>Expenses: {classData.currency} {month.expenses}</span>
+          </div>
+        ))}
+      </div>
+    );
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -186,33 +217,27 @@ export default function ClassDetailsDialog({
                       <CardTitle>Financial Overview</CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <dl className="grid grid-cols-2 gap-2 text-sm">
-                        <dt className="font-medium">Total Revenue</dt>
-                        <dd>{classData.currency} {financials.totalRevenue}</dd>
-                        <dt className="font-medium">Teacher Payouts</dt>
-                        <dd>{classData.currency} {financials.teacherPayouts}</dd>
-                        <dt className="font-medium">Profit Margin</dt>
-                        <dd>{financials.profitMargin}%</dd>
-                      </dl>
+                      {renderFinancialsOverview()}
                     </CardContent>
                   </Card>
 
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Monthly Breakdown</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-2">
-                        {financials.monthlyBreakdown.map((month) => (
-                          <div key={month.month} className="grid grid-cols-3 text-sm">
-                            <span>{month.month}</span>
-                            <span>Revenue: {classData.currency} {month.revenue}</span>
-                            <span>Expenses: {classData.currency} {month.expenses}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
+                  {financials.monthlyBreakdown && financials.monthlyBreakdown.length > 0 && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Monthly Breakdown</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        {renderMonthlyBreakdown()}
+                      </CardContent>
+                    </Card>
+                  )}
+                  {!financials.monthlyBreakdown && (
+                    <Card>
+                      <CardContent className="p-6 text-center text-muted-foreground">
+                        No monthly breakdown data available
+                      </CardContent>
+                    </Card>
+                  )}
                 </div>
               ) : (
                 <Card>
