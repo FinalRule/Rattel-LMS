@@ -22,6 +22,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Loader2 } from "lucide-react";
+
+// Define the subject type
+type Subject = {
+  id: string;
+  name: string;
+  description?: string;
+  isActive: boolean;
+};
 
 const createPricePlanSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -38,15 +47,9 @@ export default function CreatePricePlanForm() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Get current user and check authentication
-  const { data: user, isLoading: isUserLoading } = useQuery({
-    queryKey: ["/api/user"],
-  });
-
   // Get subjects for the select input
-  const { data: subjects } = useQuery({
+  const { data: subjects, isLoading: isSubjectsLoading, error: subjectsError } = useQuery<Subject[]>({
     queryKey: ["/api/subjects"],
-    enabled: !!user, // Only fetch if user is authenticated
   });
 
   const form = useForm<FormData>({
@@ -68,7 +71,7 @@ export default function CreatePricePlanForm() {
         headers: {
           "Content-Type": "application/json",
         },
-        credentials: "include", // Important for auth
+        credentials: "include",
         body: JSON.stringify(data),
       });
 
@@ -100,12 +103,12 @@ export default function CreatePricePlanForm() {
     createPricePlanMutation.mutate(data);
   };
 
-  if (isUserLoading) {
-    return <div>Loading...</div>;
-  }
-
-  if (!user) {
-    return <div>Please log in to continue</div>;
+  if (subjectsError) {
+    return (
+      <div className="text-destructive">
+        Error loading subjects: {subjectsError instanceof Error ? subjectsError.message : 'Unknown error'}
+      </div>
+    );
   }
 
   return (
@@ -138,11 +141,19 @@ export default function CreatePricePlanForm() {
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  {subjects?.map((subject) => (
-                    <SelectItem key={subject.id} value={subject.id}>
-                      {subject.name}
-                    </SelectItem>
-                  ))}
+                  {isSubjectsLoading ? (
+                    <div className="flex items-center justify-center p-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    </div>
+                  ) : subjects && subjects.length > 0 ? (
+                    subjects.map((subject) => (
+                      <SelectItem key={subject.id} value={subject.id}>
+                        {subject.name}
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <div className="p-2 text-muted-foreground">No subjects available</div>
+                  )}
                 </SelectContent>
               </Select>
               <FormMessage />
@@ -201,8 +212,18 @@ export default function CreatePricePlanForm() {
           )}
         />
 
-        <Button type="submit" disabled={createPricePlanMutation.isPending}>
-          {createPricePlanMutation.isPending ? "Creating..." : "Create Price Plan"}
+        <Button 
+          type="submit" 
+          disabled={createPricePlanMutation.isPending || isSubjectsLoading}
+        >
+          {createPricePlanMutation.isPending ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Creating...
+            </>
+          ) : (
+            "Create Price Plan"
+          )}
         </Button>
       </form>
     </Form>
