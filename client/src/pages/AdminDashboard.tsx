@@ -26,6 +26,8 @@ import StudentList from "@/components/students/StudentList";
 import CreateSubjectDialog from "@/components/subjects/CreateSubjectDialog";
 import CreateTeacherDialog from "@/components/teachers/CreateTeacherDialog";
 import CreateStudentDialog from "@/components/students/CreateStudentDialog";
+import ClassList from "@/components/classes/ClassList";
+import CreateClassDialog from "@/components/classes/CreateClassDialog";
 
 interface AttendanceStats {
   sessionId: string;
@@ -45,6 +47,7 @@ export default function AdminDashboard() {
   const [isCreateSubjectOpen, setIsCreateSubjectOpen] = useState(false);
   const [isCreateTeacherOpen, setIsCreateTeacherOpen] = useState(false);
   const [isCreateStudentOpen, setIsCreateStudentOpen] = useState(false);
+  const [isCreateClassOpen, setIsCreateClassOpen] = useState(false);
 
   const { data: attendanceStats, isLoading: loadingAttendance } = useQuery<AttendanceStats[]>({
     queryKey: ["/api/analytics/attendance"],
@@ -71,6 +74,7 @@ export default function AdminDashboard() {
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="teachers">Teachers</TabsTrigger>
           <TabsTrigger value="students">Students</TabsTrigger>
+          <TabsTrigger value="classes">Classes</TabsTrigger>
           <TabsTrigger value="subjects">Subjects</TabsTrigger>
           <TabsTrigger value="attendance">Attendance</TabsTrigger>
           <TabsTrigger value="financial">Financial</TabsTrigger>
@@ -230,6 +234,21 @@ export default function AdminDashboard() {
           <CreateTeacherDialog 
             open={isCreateTeacherOpen}
             onOpenChange={setIsCreateTeacherOpen}
+          />
+        </TabsContent>
+
+        <TabsContent value="classes" className="space-y-4">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-2xl font-bold">Class Management</h2>
+            <Button onClick={() => setIsCreateClassOpen(true)}>
+              <Plus className="w-4 h-4 mr-2" />
+              Add Class
+            </Button>
+          </div>
+          <ClassList />
+          <CreateClassDialog 
+            open={isCreateClassOpen}
+            onOpenChange={setIsCreateClassOpen}
           />
         </TabsContent>
       </Tabs>
