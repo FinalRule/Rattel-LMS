@@ -15,10 +15,12 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 
 const subjectSchema = z.object({
@@ -26,9 +28,12 @@ const subjectSchema = z.object({
   details: z.string(),
   category: z.string().min(1, "Category is required"),
   difficultyLevel: z.string().min(1, "Difficulty level is required"),
-  availableDurations: z.array(z.number()).default([]),
+  availableDurations: z.string().transform((val) => 
+    val.split(",").map((n) => parseInt(n.trim())).filter((n) => !isNaN(n))
+  ),
   sessionsPerMonth: z.number(),
   defaultBufferTime: z.number(),
+  isActive: z.boolean().default(true),
 });
 
 type Props = {
@@ -47,9 +52,10 @@ export default function CreateSubjectDialog({ open, onOpenChange }: Props) {
       details: "",
       category: "",
       difficultyLevel: "",
-      availableDurations: [60, 90, 120],
+      availableDurations: "60,90,120",
       sessionsPerMonth: 4,
       defaultBufferTime: 15,
+      isActive: true,
     },
   });
 
@@ -155,6 +161,23 @@ export default function CreateSubjectDialog({ open, onOpenChange }: Props) {
 
             <FormField
               control={form.control}
+              name="availableDurations"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Available Durations (minutes)</FormLabel>
+                  <FormControl>
+                    <Input {...field} placeholder="60,90,120" />
+                  </FormControl>
+                  <FormDescription>
+                    Enter durations in minutes, separated by commas (e.g., 60,90,120)
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
               name="sessionsPerMonth"
               render={({ field: { value, onChange, ...field } }) => (
                 <FormItem>
@@ -187,6 +210,27 @@ export default function CreateSubjectDialog({ open, onOpenChange }: Props) {
                     />
                   </FormControl>
                   <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="isActive"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                  <div className="space-y-0.5">
+                    <FormLabel className="text-base">Active Status</FormLabel>
+                    <FormDescription>
+                      Set whether this subject is active and available
+                    </FormDescription>
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
                 </FormItem>
               )}
             />
