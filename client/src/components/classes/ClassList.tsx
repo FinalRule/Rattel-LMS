@@ -20,9 +20,11 @@ import { Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { SelectClass } from "@db/schema";
 import ClassDetailsDialog from "./ClassDetailsDialog";
+import EditClassDialog from "./EditClassDialog";
 
 export default function ClassList() {
   const [selectedClass, setSelectedClass] = useState<SelectClass | null>(null);
+  const [editingClass, setEditingClass] = useState<SelectClass | null>(null);
 
   const { data: classes, isLoading, error } = useQuery<SelectClass[]>({
     queryKey: ["/api/classes"],
@@ -66,7 +68,7 @@ export default function ClassList() {
                   </Badge>
                 </CardTitle>
                 <CardDescription>
-                  Teacher: {classItem.teacher?.user?.fullName || 'Unassigned'}
+                  Teacher: {classItem.teacherId || 'Unassigned'}
                 </CardDescription>
               </div>
               <div className="flex gap-2">
@@ -80,6 +82,7 @@ export default function ClassList() {
                 <Button
                   variant="outline"
                   size="icon"
+                  onClick={() => setEditingClass(classItem)}
                 >
                   <Edit2 className="h-4 w-4" />
                 </Button>
@@ -123,6 +126,14 @@ export default function ClassList() {
           classData={selectedClass}
           open={true}
           onOpenChange={(open) => !open && setSelectedClass(null)}
+        />
+      )}
+
+      {editingClass && (
+        <EditClassDialog
+          classData={editingClass}
+          open={true}
+          onOpenChange={(open) => !open && setEditingClass(null)}
         />
       )}
     </div>

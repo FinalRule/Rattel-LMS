@@ -180,6 +180,69 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Add this route after the existing POST /api/classes route
+  app.put("/api/classes/:id", async (req, res) => {
+    try {
+      const classId = req.params.id;
+      const {
+        name,
+        teacherId,
+        pricePlanId,
+        startDate,
+        defaultDuration,
+        schedule,
+        monthlyPrice,
+        currency,
+        teacherHourlyRate,
+        bufferTime,
+      } = req.body;
+
+      const [updatedClass] = await db
+        .update(classes)
+        .set({
+          name,
+          teacherId,
+          pricePlanId,
+          startDate: startDate,
+          defaultDuration,
+          schedule,
+          monthlyPrice: monthlyPrice.toString(),
+          currency,
+          teacherHourlyRate: teacherHourlyRate.toString(),
+          bufferTime,
+          updatedAt: new Date(),
+        })
+        .where(eq(classes.id, classId))
+        .returning();
+
+      if (!updatedClass) {
+        return res.status(404).json({ error: "Class not found" });
+      }
+
+      // Fetch the updated class with related data
+      const classWithRelations = await db.query.classes.findFirst({
+        where: eq(classes.id, updatedClass.id),
+        with: {
+          teacher: {
+            with: {
+              user: true,
+            }
+          },
+          pricePlan: {
+            with: {
+              subject: true,
+            }
+          },
+        },
+      });
+
+      res.json(classWithRelations);
+    } catch (error: any) {
+      console.error("Error updating class:", error);
+      res.status(400).json({ error: error.message });
+    }
+  });
+
   //Subjects routes - all require authentication
   app.get("/api/subjects", async (req, res) => {
     const allSubjects = await db.select().from(subjects);
