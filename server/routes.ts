@@ -4,13 +4,28 @@ import { setupAuth } from "./auth";
 import { db } from "@db";
 import {
   users,
+  teachers,
   subjects,
   classes,
   sessions,
   payments,
   sessionAttendance,
+  insertUserSchema,
+  insertTeacherSchema,
 } from "@db/schema";
 import { eq, count } from "drizzle-orm";
+import { scrypt, randomBytes } from "crypto";
+import { promisify } from "util";
+
+const scryptAsync = promisify(scrypt);
+
+const crypto = {
+  hash: async (password: string) => {
+    const salt = randomBytes(16).toString("hex");
+    const buf = (await scryptAsync(password, salt, 64)) as Buffer;
+    return `${buf.toString("hex")}.${salt}`;
+  },
+};
 
 export function registerRoutes(app: Express): Server {
   // Auth routes
@@ -26,6 +41,109 @@ export function registerRoutes(app: Express): Server {
     }
     next();
   };
+
+  // Teachers
+  app.get("/api/teachers", async (req, res) => {
+    try {
+      const allTeachers = await db.query.teachers.findMany({
+        with: {
+          user: true,
+        },
+      });
+      res.json(allTeachers);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/teachers", requireAdmin, async (req, res) => {
+    try {
+      const { 
+        email, 
+        password, 
+        fullName,
+        phone,
+        whatsapp,
+        timezone,
+        bio,
+        residenceCity,
+        googleAccount,
+        availabilitySchedule,
+        bufferTimePreference,
+        baseSalaryPerHour,
+        notes
+      } = req.body;
+
+      // Validate user input
+      const userResult = insertUserSchema.safeParse({
+        email,
+        password,
+        fullName,
+        phone,
+        whatsapp,
+        timezone,
+        role: "teacher",
+      });
+
+      if (!userResult.success) {
+        return res.status(400).json({ 
+          error: "Invalid input", 
+          details: userResult.error.issues 
+        });
+      }
+
+      // Check if user already exists
+      const existingUser = await db.query.users.findFirst({
+        where: eq(users.email, email),
+      });
+
+      if (existingUser) {
+        return res.status(400).json({ error: "Email already exists" });
+      }
+
+      // Hash the password
+      const hashedPassword = await crypto.hash(password);
+
+      // Create user and teacher in a transaction
+      const [teacher] = await db.transaction(async (tx) => {
+        // Create user first
+        const [newUser] = await tx
+          .insert(users)
+          .values({
+            email,
+            password: hashedPassword,
+            fullName,
+            phone,
+            whatsapp,
+            timezone,
+            role: "teacher",
+          })
+          .returning();
+
+        // Create teacher profile
+        const [newTeacher] = await tx
+          .insert(teachers)
+          .values({
+            userId: newUser.id,
+            bio,
+            residenceCity,
+            googleAccount,
+            availabilitySchedule,
+            bufferTimePreference,
+            baseSalaryPerHour,
+            notes,
+          })
+          .returning();
+
+        return [{ ...newTeacher, user: newUser }];
+      });
+
+      res.json(teacher);
+    } catch (error: any) {
+      console.error("Error creating teacher:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
 
   // Subjects
   app.get("/api/subjects", async (req, res) => {
