@@ -248,13 +248,77 @@ export function registerRoutes(app: Express): Server {
 
   // Classes
   app.get("/api/classes", async (req, res) => {
-    const allClasses = await db.select().from(classes);
-    res.json(allClasses);
+    try {
+      const allClasses = await db.query.classes.findMany({
+        with: {
+          teacher: {
+            with: {
+              user: true,
+            }
+          },
+          pricePlan: {
+            with: {
+              subject: true,
+            }
+          },
+        },
+      });
+      res.json(allClasses);
+    } catch (error: any) {
+      console.error("Error fetching classes:", error);
+      res.status(500).json({ error: error.message });
+    }
   });
 
-  app.post("/api/classes", async (req, res) => {
-    const newClass = await db.insert(classes).values(req.body).returning();
-    res.json(newClass[0]);
+  app.post("/api/classes", requireAdmin, async (req, res) => {
+    try {
+      const { name, teacherId, pricePlanId, startDate, endDate, maxStudents, notes } = req.body;
+
+      // Validate required fields
+      if (!name || !teacherId || !pricePlanId) {
+        return res.status(400).json({
+          error: "Missing required fields",
+          details: "Name, teacher, and price plan are required"
+        });
+      }
+
+      // Create the class
+      const [newClass] = await db
+        .insert(classes)
+        .values({
+          name,
+          teacherId,
+          pricePlanId,
+          startDate: startDate ? new Date(startDate) : null,
+          endDate: endDate ? new Date(endDate) : null,
+          maxStudents,
+          notes,
+          status: "active",
+        })
+        .returning();
+
+      // Fetch the created class with related data
+      const classWithRelations = await db.query.classes.findFirst({
+        where: eq(classes.id, newClass.id),
+        with: {
+          teacher: {
+            with: {
+              user: true,
+            }
+          },
+          pricePlan: {
+            with: {
+              subject: true,
+            }
+          },
+        },
+      });
+
+      res.json(classWithRelations);
+    } catch (error: any) {
+      console.error("Error creating class:", error);
+      res.status(400).json({ error: error.message });
+    }
   });
 
   // Sessions
