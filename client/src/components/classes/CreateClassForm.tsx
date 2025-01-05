@@ -97,9 +97,13 @@ export default function CreateClassForm({ onClose }: { onClose: () => void }) {
   });
 
   const onSubmit = async (data: StepOneData) => {
+      console.log("Form submitted with data:", data);
+      console.log("Current form state:", form.formState);
+    
     if (currentStep === 1) {
       try {
               const isValid = await form.trigger();
+      console.log("Form validation result:", isValid);
       if (isValid) {
         setCurrentStep(2);  // Move to next step instead of submitting
         console.log("Moving to step 2", data);  // Debug log
