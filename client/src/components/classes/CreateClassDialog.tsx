@@ -33,18 +33,17 @@ import type { SelectTeacher, SelectPricePlan } from "@db/schema";
 const createClassSchema = z.object({
   name: z.string().min(1, "Class name is required"),
   teacherId: z.string().uuid("Please select a teacher"),
-  subjectId: z.string().uuid("Please select a subject"),
   pricePlanId: z.string().uuid("Please select a price plan"),
   startDate: z.string().min(1, "Start date is required"),
-  defaultDuration: z.number().min(30, "Duration must be at least 30 minutes"),
+  defaultDuration: z.coerce.number().min(30, "Duration must be at least 30 minutes"),
   schedule: z.object({
     days: z.array(z.string()),
     time: z.string(),
   }),
-  monthlyPrice: z.number().min(0, "Price must be non-negative"),
+  monthlyPrice: z.coerce.number().min(0, "Price must be non-negative"),
   currency: z.string().min(1, "Currency is required"),
-  teacherHourlyRate: z.number().min(0, "Teacher rate must be non-negative"),
-  bufferTime: z.number().optional(),
+  teacherHourlyRate: z.coerce.number().min(0, "Teacher rate must be non-negative"),
+  bufferTime: z.coerce.number().optional(),
 });
 
 type CreateClassFormData = z.infer<typeof createClassSchema>;
@@ -66,6 +65,8 @@ export default function CreateClassDialog({
     resolver: zodResolver(createClassSchema),
     defaultValues: {
       name: "",
+      teacherId: undefined,
+      pricePlanId: undefined,
       startDate: new Date().toISOString().split("T")[0],
       defaultDuration: 60,
       schedule: {
@@ -74,6 +75,8 @@ export default function CreateClassDialog({
       },
       bufferTime: 10,
       currency: "USD",
+      monthlyPrice: 0,
+      teacherHourlyRate: 0,
     },
   });
 
@@ -92,11 +95,13 @@ export default function CreateClassDialog({
         headers: {
           "Content-Type": "application/json",
         },
+        credentials: "include",
         body: JSON.stringify(data),
       });
 
       if (!response.ok) {
-        throw new Error(await response.text());
+        const text = await response.text();
+        throw new Error(text);
       }
 
       return response.json();
@@ -120,9 +125,32 @@ export default function CreateClassDialog({
     },
   });
 
-  const onSubmit = (data: CreateClassFormData) => {
+  const validateCurrentStep = () => {
+    let isValid = true;
+    const formData = form.getValues();
+
+    if (step === 1) {
+      isValid = Boolean(
+        formData.name &&
+        formData.teacherId &&
+        formData.pricePlanId
+      );
+    } else if (step === 2) {
+      isValid = Boolean(
+        formData.startDate &&
+        formData.defaultDuration &&
+        formData.defaultDuration >= 30
+      );
+    }
+
+    return isValid;
+  };
+
+  const onSubmit = async (data: CreateClassFormData) => {
     if (step < 3) {
-      setStep(step + 1);
+      if (validateCurrentStep()) {
+        setStep(step + 1);
+      }
       return;
     }
     createClassMutation.mutate(data);
@@ -162,7 +190,7 @@ export default function CreateClassDialog({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Teacher</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Select a teacher" />
@@ -187,7 +215,7 @@ export default function CreateClassDialog({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Price Plan</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Select a price plan" />
@@ -233,8 +261,7 @@ export default function CreateClassDialog({
                       <FormControl>
                         <Input 
                           type="number" 
-                          {...field} 
-                          onChange={e => field.onChange(parseInt(e.target.value))}
+                          {...field}
                         />
                       </FormControl>
                       <FormMessage />
@@ -251,8 +278,7 @@ export default function CreateClassDialog({
                       <FormControl>
                         <Input 
                           type="number" 
-                          {...field} 
-                          onChange={e => field.onChange(parseInt(e.target.value))}
+                          {...field}
                         />
                       </FormControl>
                       <FormMessage />
@@ -272,9 +298,8 @@ export default function CreateClassDialog({
                       <FormLabel>Monthly Price</FormLabel>
                       <FormControl>
                         <Input 
-                          type="number" 
-                          {...field} 
-                          onChange={e => field.onChange(parseFloat(e.target.value))}
+                          type="number"
+                          {...field}
                         />
                       </FormControl>
                       <FormMessage />
@@ -288,7 +313,7 @@ export default function CreateClassDialog({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Currency</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Select currency" />
@@ -313,9 +338,8 @@ export default function CreateClassDialog({
                       <FormLabel>Teacher Hourly Rate</FormLabel>
                       <FormControl>
                         <Input 
-                          type="number" 
-                          {...field} 
-                          onChange={e => field.onChange(parseFloat(e.target.value))}
+                          type="number"
+                          {...field}
                         />
                       </FormControl>
                       <FormMessage />
