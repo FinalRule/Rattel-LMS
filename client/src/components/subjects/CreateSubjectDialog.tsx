@@ -28,10 +28,12 @@ const subjectSchema = z.object({
   details: z.string(),
   category: z.string().min(1, "Category is required"),
   difficultyLevel: z.string().min(1, "Difficulty level is required"),
-  availableDurations: z.string().transform((val) => 
+  availableDurations: z.string().transform((val) =>
     val.split(",").map((n) => parseInt(n.trim())).filter((n) => !isNaN(n))
   ),
-  sessionsPerMonth: z.number(),
+  sessionsPerMonth: z.string().transform((val) =>
+    val.split(",").map((n) => parseInt(n.trim())).filter((n) => !isNaN(n))
+  ),
   defaultBufferTime: z.number(),
   isActive: z.boolean().default(true),
 });
@@ -53,7 +55,7 @@ export default function CreateSubjectDialog({ open, onOpenChange }: Props) {
       category: "",
       difficultyLevel: "",
       availableDurations: "60,90,120",
-      sessionsPerMonth: 4,
+      sessionsPerMonth: "4,8,12",
       defaultBufferTime: 15,
       isActive: true,
     },
@@ -179,17 +181,15 @@ export default function CreateSubjectDialog({ open, onOpenChange }: Props) {
             <FormField
               control={form.control}
               name="sessionsPerMonth"
-              render={({ field: { value, onChange, ...field } }) => (
+              render={({ field }) => (
                 <FormItem>
                   <FormLabel>Sessions per Month</FormLabel>
                   <FormControl>
-                    <Input 
-                      type="number" 
-                      value={value}
-                      onChange={(e) => onChange(parseInt(e.target.value))}
-                      {...field} 
-                    />
+                    <Input {...field} placeholder="4,8,12" />
                   </FormControl>
+                  <FormDescription>
+                    Enter number of sessions, separated by commas (e.g., 4,8,12)
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -202,11 +202,11 @@ export default function CreateSubjectDialog({ open, onOpenChange }: Props) {
                 <FormItem>
                   <FormLabel>Default Buffer Time (minutes)</FormLabel>
                   <FormControl>
-                    <Input 
-                      type="number" 
+                    <Input
+                      type="number"
                       value={value}
                       onChange={(e) => onChange(parseInt(e.target.value))}
-                      {...field} 
+                      {...field}
                     />
                   </FormControl>
                   <FormMessage />
