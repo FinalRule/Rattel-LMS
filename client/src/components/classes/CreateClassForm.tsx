@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -23,26 +22,37 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-// Step 1 Schema: Basic Information
-const stepOneSchema = z.object({
+// Form Schema
+const createClassSchema = z.object({
   name: z.string().min(1, "Class name is required"),
   teacherId: z.string().min(1, "Teacher is required"),
   pricePlanId: z.string().min(1, "Price plan is required"),
+  startDate: z.string().min(1, "Start date is required"),
+  defaultDuration: z.number().min(1, "Duration is required"),
+  monthlyPrice: z.number().min(0, "Monthly price must be 0 or greater"),
+  currency: z.string().min(1, "Currency is required"),
+  teacherHourlyRate: z.number().min(0, "Teacher hourly rate must be 0 or greater"),
+  bufferTime: z.number().min(0, "Buffer time must be 0 or greater"),
 });
 
-type StepOneData = z.infer<typeof stepOneSchema>;
+type CreateClassData = z.infer<typeof createClassSchema>;
 
 export default function CreateClassForm({ onClose }: { onClose: () => void }) {
-  const [currentStep, setCurrentStep] = useState(1);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const form = useForm<StepOneData>({
-    resolver: zodResolver(stepOneSchema),
+  const form = useForm<CreateClassData>({
+    resolver: zodResolver(createClassSchema),
     defaultValues: {
       name: "",
       teacherId: "",
       pricePlanId: "",
+      startDate: new Date().toISOString().split('T')[0],
+      defaultDuration: 60,
+      monthlyPrice: 0,
+      currency: "USD",
+      teacherHourlyRate: 0,
+      bufferTime: 15,
     },
   });
 
@@ -60,7 +70,7 @@ export default function CreateClassForm({ onClose }: { onClose: () => void }) {
 
   // Create class mutation
   const createClassMutation = useMutation({
-    mutationFn: async (data: StepOneData) => {
+    mutationFn: async (data: CreateClassData) => {
       const token = localStorage.getItem('ACCESS_TOKEN');
       const response = await fetch('/api/classes', {
         method: 'POST',
@@ -95,26 +105,7 @@ export default function CreateClassForm({ onClose }: { onClose: () => void }) {
     },
   });
 
-  // Handle step navigation
-  const handleNext = async () => {
-    const isValid = await form.trigger();
-    console.log("Form validation:", isValid, form.formState.errors);
-
-    if (isValid) {
-      setCurrentStep(prev => prev + 1);
-    } else {
-      toast({
-        title: "Validation Error",
-        description: "Please fill in all required fields",
-        variant: "destructive",
-      });
-    }
-  };
-
-  // Handle form submission
-  const onSubmit = async (data: StepOneData) => {
-    // This will only be called when the form is actually being submitted
-    console.log("Submitting data:", data);
+  const onSubmit = async (data: CreateClassData) => {
     try {
       await createClassMutation.mutateAsync(data);
     } catch (error) {
@@ -146,7 +137,7 @@ export default function CreateClassForm({ onClose }: { onClose: () => void }) {
       <div className="mb-6">
         <h2 className="text-lg font-semibold">Create New Class</h2>
         <p className="text-sm text-muted-foreground">
-          Step {currentStep} of 4: {currentStep === 1 ? "Basic Information" : ""}
+          Fill in the class details below
         </p>
       </div>
 
@@ -162,11 +153,10 @@ export default function CreateClassForm({ onClose }: { onClose: () => void }) {
                   <Input 
                     id="class-name"
                     placeholder="Enter class name"
-                    aria-describedby="class-name-description"
                     {...field}
                   />
                 </FormControl>
-                <FormMessage id="class-name-description" />
+                <FormMessage />
               </FormItem>
             )}
           />
@@ -182,10 +172,7 @@ export default function CreateClassForm({ onClose }: { onClose: () => void }) {
                   defaultValue={field.value}
                 >
                   <FormControl>
-                    <SelectTrigger
-                      id="teacher-select"
-                      aria-describedby="teacher-select-description"
-                    >
+                    <SelectTrigger id="teacher-select">
                       <SelectValue placeholder="Select a teacher" />
                     </SelectTrigger>
                   </FormControl>
@@ -197,7 +184,7 @@ export default function CreateClassForm({ onClose }: { onClose: () => void }) {
                     ))}
                   </SelectContent>
                 </Select>
-                <FormMessage id="teacher-select-description" />
+                <FormMessage />
               </FormItem>
             )}
           />
@@ -213,10 +200,7 @@ export default function CreateClassForm({ onClose }: { onClose: () => void }) {
                   defaultValue={field.value}
                 >
                   <FormControl>
-                    <SelectTrigger
-                      id="price-plan-select"
-                      aria-describedby="price-plan-select-description"
-                    >
+                    <SelectTrigger id="price-plan-select">
                       <SelectValue placeholder="Select a price plan" />
                     </SelectTrigger>
                   </FormControl>
@@ -228,24 +212,147 @@ export default function CreateClassForm({ onClose }: { onClose: () => void }) {
                     ))}
                   </SelectContent>
                 </Select>
-                <FormMessage id="price-plan-select-description" />
+                <FormMessage />
               </FormItem>
             )}
           />
 
-          <div className="flex justify-end gap-4">
+          <FormField
+            control={form.control}
+            name="startDate"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel htmlFor="start-date">Start Date</FormLabel>
+                <FormControl>
+                  <Input 
+                    id="start-date"
+                    type="date"
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <FormField
+              control={form.control}
+              name="defaultDuration"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel htmlFor="duration">Duration (minutes)</FormLabel>
+                  <FormControl>
+                    <Input 
+                      id="duration"
+                      type="number"
+                      {...field}
+                      onChange={e => field.onChange(parseInt(e.target.value))}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="bufferTime"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel htmlFor="buffer-time">Buffer Time (minutes)</FormLabel>
+                  <FormControl>
+                    <Input 
+                      id="buffer-time"
+                      type="number"
+                      {...field}
+                      onChange={e => field.onChange(parseInt(e.target.value))}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <FormField
+              control={form.control}
+              name="monthlyPrice"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel htmlFor="monthly-price">Monthly Price</FormLabel>
+                  <FormControl>
+                    <Input 
+                      id="monthly-price"
+                      type="number"
+                      {...field}
+                      onChange={e => field.onChange(parseFloat(e.target.value))}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="currency"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel htmlFor="currency-select">Currency</FormLabel>
+                  <Select 
+                    onValueChange={field.onChange}
+                    defaultValue={field.value}
+                  >
+                    <FormControl>
+                      <SelectTrigger id="currency-select">
+                        <SelectValue placeholder="Select currency" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="USD">USD</SelectItem>
+                      <SelectItem value="EUR">EUR</SelectItem>
+                      <SelectItem value="GBP">GBP</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
+          <FormField
+            control={form.control}
+            name="teacherHourlyRate"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel htmlFor="hourly-rate">Teacher Hourly Rate</FormLabel>
+                <FormControl>
+                  <Input 
+                    id="hourly-rate"
+                    type="number"
+                    {...field}
+                    onChange={e => field.onChange(parseFloat(e.target.value))}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <div className="flex justify-end gap-4 pt-4">
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
             <Button 
-              type="button"
-              onClick={handleNext}
+              type="submit"
               disabled={createClassMutation.isPending}
             >
               {createClassMutation.isPending && (
                 <Loader2 className="h-4 w-4 animate-spin mr-2" />
               )}
-              Next
+              Create Class
             </Button>
           </div>
         </form>
