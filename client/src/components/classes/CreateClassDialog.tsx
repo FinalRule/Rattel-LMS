@@ -75,7 +75,7 @@ export default function CreateClassDialog({ open, onOpenChange }: CreateClassDia
   const [step, setStep] = useState(1);
   const [selectedDays, setSelectedDays] = useState<string[]>([]);
 
-  // Check user authentication
+  // Get current user
   const { data: user } = useQuery({
     queryKey: ["/api/user"],
   });
@@ -93,14 +93,15 @@ export default function CreateClassDialog({ open, onOpenChange }: CreateClassDia
         days: [],
         times: [],
       },
-      bufferTime: 10,
-      currency: "USD",
       monthlyPrice: 0,
+      currency: "USD",
       teacherHourlyRate: 0,
+      bufferTime: 10,
       selectedStudentIds: [],
     },
   });
 
+  // Queries - only enabled when user is authenticated
   const { data: teachers } = useQuery<SelectTeacher[]>({
     queryKey: ["/api/teachers"],
     enabled: !!user,
@@ -258,10 +259,10 @@ export default function CreateClassDialog({ open, onOpenChange }: CreateClassDia
           <DialogTitle>Create New Class</DialogTitle>
           <DialogDescription>
             Step {step} of 4: {
-              step === 1 ? "Basic Information" : 
-              step === 2 ? "Schedule & Duration" : 
-              step === 3 ? "Weekly Schedule" :
-              "Pricing & Settings"
+              step === 1 ? "Basic Information" :
+                step === 2 ? "Schedule & Duration" :
+                  step === 3 ? "Weekly Schedule" :
+                    "Pricing & Settings"
             }
           </DialogDescription>
         </DialogHeader>
@@ -359,7 +360,7 @@ export default function CreateClassDialog({ open, onOpenChange }: CreateClassDia
                     <FormItem>
                       <FormLabel>Duration (months)</FormLabel>
                       <FormControl>
-                        <Input 
+                        <Input
                           type="number"
                           min="1"
                           {...field}
@@ -378,7 +379,7 @@ export default function CreateClassDialog({ open, onOpenChange }: CreateClassDia
                     <FormItem>
                       <FormLabel>Session Duration (minutes)</FormLabel>
                       <FormControl>
-                        <Input 
+                        <Input
                           type="number"
                           {...field}
                           id="defaultDuration"
@@ -396,7 +397,7 @@ export default function CreateClassDialog({ open, onOpenChange }: CreateClassDia
                     <FormItem>
                       <FormLabel>Buffer Time (minutes)</FormLabel>
                       <FormControl>
-                        <Input 
+                        <Input
                           type="number"
                           {...field}
                           id="bufferTime"
@@ -419,7 +420,7 @@ export default function CreateClassDialog({ open, onOpenChange }: CreateClassDia
                         <Checkbox
                           id={`day-${day.value}`}
                           checked={selectedDays.includes(day.value)}
-                          onCheckedChange={(checked) => 
+                          onCheckedChange={(checked) =>
                             handleDayChange(day.value, checked as boolean)
                           }
                         />
@@ -476,7 +477,7 @@ export default function CreateClassDialog({ open, onOpenChange }: CreateClassDia
                     <FormItem>
                       <FormLabel>Monthly Price</FormLabel>
                       <FormControl>
-                        <Input 
+                        <Input
                           type="number"
                           {...field}
                           id="monthlyPrice"
@@ -517,7 +518,7 @@ export default function CreateClassDialog({ open, onOpenChange }: CreateClassDia
                     <FormItem>
                       <FormLabel>Teacher Hourly Rate</FormLabel>
                       <FormControl>
-                        <Input 
+                        <Input
                           type="number"
                           {...field}
                           id="teacherHourlyRate"
@@ -534,9 +535,9 @@ export default function CreateClassDialog({ open, onOpenChange }: CreateClassDia
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Students</FormLabel>
-                        <Select 
-                          multiple 
-                          onValueChange={(value) => field.onChange(Array.isArray(value) ? value : [value])} 
+                        <Select
+                          multiple
+                          onValueChange={(value) => field.onChange(Array.isArray(value) ? value : [value])}
                           value={field.value}
                         >
                           <FormControl>

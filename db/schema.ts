@@ -12,6 +12,25 @@ import {
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
+import { z } from "zod";
+
+// Class schema
+export const classes = pgTable("classes", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  name: text("name").notNull(),
+  teacherId: uuid("teacher_id").references(() => teachers.userId),
+  pricePlanId: uuid("price_plan_id").references(() => pricePlans.id),
+  startDate: date("start_date").notNull(),
+  defaultDuration: integer("default_duration").notNull(),
+  schedule: jsonb("schedule").notNull(),
+  bufferTime: integer("buffer_time"),
+  monthlyPrice: decimal("monthly_price", { precision: 10, scale: 2 }).notNull(),
+  currency: text("currency").notNull(),
+  teacherHourlyRate: decimal("teacher_hourly_rate", { precision: 10, scale: 2 }).notNull(),
+  status: text("status").default("active"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow()
+});
 
 // Enum types
 export const userRoles = ["admin", "teacher", "student"] as const;
@@ -106,25 +125,6 @@ export const studentRelations = relations(students, ({ one, many }) => ({
   }),
   enrollments: many(classEnrollments)
 }));
-
-// Classes
-export const classes = pgTable("classes", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  subjectId: uuid("subject_id").references(() => subjects.id),
-  teacherId: uuid("teacher_id").references(() => teachers.userId),
-  pricePlanId: uuid("price_plan_id").references(() => pricePlans.id),
-  name: text("name"),
-  startDate: date("start_date").notNull(),
-  defaultDuration: integer("default_duration").notNull(),
-  schedule: jsonb("schedule").notNull(),
-  bufferTime: integer("buffer_time"),
-  monthlyPrice: decimal("monthly_price", { precision: 10, scale: 2 }).notNull(),
-  currency: text("currency").notNull(),
-  teacherHourlyRate: decimal("teacher_hourly_rate", { precision: 10, scale: 2 }).notNull(),
-  status: text("status", { enum: classStatuses }).default("active"),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow()
-});
 
 // Enrollments
 export const classEnrollments = pgTable("class_enrollments", {
