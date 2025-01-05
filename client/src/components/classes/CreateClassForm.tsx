@@ -44,7 +44,6 @@ export default function CreateClassForm({ onClose }: { onClose: () => void }) {
       teacherId: "",
       pricePlanId: "",
     },
-    mode: "onChange",
   });
 
   // Fetch teachers with error handling
@@ -96,27 +95,30 @@ export default function CreateClassForm({ onClose }: { onClose: () => void }) {
     },
   });
 
-  const onSubmit = async (data: StepOneData) => {
-      console.log("Form submitted with data:", data);
-      console.log("Current form state:", form.formState);
-    
-    if (currentStep === 1) {
-      try {
-              const isValid = await form.trigger();
-      console.log("Form validation result:", isValid);
-      if (isValid) {
-        setCurrentStep(2);  // Move to next step instead of submitting
-        console.log("Moving to step 2", data);  // Debug log
-      }
-        //await createClassMutation.mutateAsync(data);
-      } catch (error) {
-      console.error('Validation error:', error);
+  // Separate next and submit handlers
+  const handleNext = async () => {
+    const isValid = await form.trigger();
+    console.log("Form validation:", isValid);
+    console.log("Form data:", form.getValues());
+
+    if (isValid) {
+      setCurrentStep(prev => prev + 1);
+    } else {
       toast({
-        title: "Error",
+        title: "Validation Error",
         description: "Please fill in all required fields",
         variant: "destructive",
       });
-      }
+    }
+  };
+
+  const onSubmit = async (data: StepOneData) => {
+    // This will only be called when the form is actually being submitted
+    console.log("Submitting data:", data);
+    try {
+      await createClassMutation.mutateAsync(data);
+    } catch (error) {
+      console.error('Error creating class:', error);
     }
   };
 
@@ -176,7 +178,7 @@ export default function CreateClassForm({ onClose }: { onClose: () => void }) {
               <FormItem>
                 <FormLabel htmlFor="teacher-select">Teacher</FormLabel>
                 <Select 
-                  onValueChange={field.onChange} 
+                  onValueChange={field.onChange}
                   defaultValue={field.value}
                 >
                   <FormControl>
@@ -235,15 +237,30 @@ export default function CreateClassForm({ onClose }: { onClose: () => void }) {
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button 
-              type="submit" 
-  disabled={createClassMutation.isPending}
-            >
-              {createClassMutation.isPending && (
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-              )}
-              Next
-            </Button>
+            {currentStep < 4 ? (
+              // Next button (type="button" to prevent form submission)
+              <Button 
+                type="button"
+                onClick={handleNext}
+                disabled={createClassMutation.isPending}
+              >
+                {createClassMutation.isPending && (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                )}
+                Next
+              </Button>
+            ) : (
+              // Submit button (only on last step)
+              <Button 
+                type="submit"
+                disabled={createClassMutation.isPending}
+              >
+                {createClassMutation.isPending && (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                )}
+                Create Class
+              </Button>
+            )}
           </div>
         </form>
       </Form>

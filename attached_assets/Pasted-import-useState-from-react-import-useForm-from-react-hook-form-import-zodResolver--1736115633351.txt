@@ -1,0 +1,103 @@
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+// ... other imports remain same
+
+// Step 1 Schema: Basic Information
+const stepOneSchema = z.object({
+  name: z.string().min(1, "Class name is required"),
+  teacherId: z.string().min(1, "Teacher is required"),
+  pricePlanId: z.string().min(1, "Price plan is required"),
+});
+
+type StepOneData = z.infer<typeof stepOneSchema>;
+
+export default function CreateClassForm({ onClose }: { onClose: () => void }) {
+  const [currentStep, setCurrentStep] = useState(1);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const form = useForm<StepOneData>({
+    resolver: zodResolver(stepOneSchema),
+    defaultValues: {
+      name: "",
+      teacherId: "",
+      pricePlanId: "",
+    },
+  });
+
+  // ... queries remain same
+
+  // Separate next and submit handlers
+  const handleNext = async () => {
+    const isValid = await form.trigger();
+    console.log("Form validation:", isValid);
+    console.log("Form data:", form.getValues());
+    
+    if (isValid) {
+      setCurrentStep(prev => prev + 1);
+    } else {
+      toast({
+        title: "Validation Error",
+        description: "Please fill in all required fields",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const onSubmit = async (data: StepOneData) => {
+    // This will only be called when the form is actually being submitted
+    console.log("Submitting data:", data);
+    try {
+      await createClassMutation.mutateAsync(data);
+    } catch (error) {
+      console.error('Error creating class:', error);
+    }
+  };
+
+  // ... loading and error handling remain same
+
+  return (
+    <div className="max-w-2xl mx-auto p-6">
+      <div className="mb-6">
+        <h2 className="text-lg font-semibold">Create New Class</h2>
+        <p className="text-sm text-muted-foreground">
+          Step {currentStep} of 4: {currentStep === 1 ? "Basic Information" : ""}
+        </p>
+      </div>
+
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          {/* ... form fields remain same ... */}
+
+          <div className="flex justify-end gap-4">
+            <Button type="button" variant="outline" onClick={onClose}>
+              Cancel
+            </Button>
+            {currentStep < 4 ? (
+              // Next button (type="button" to prevent form submission)
+              <Button 
+                type="button"
+                onClick={handleNext}
+              >
+                Next
+              </Button>
+            ) : (
+              // Submit button (only on last step)
+              <Button 
+                type="submit"
+                disabled={createClassMutation.isPending}
+              >
+                {createClassMutation.isPending && (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                )}
+                Create Class
+              </Button>
+            )}
+          </div>
+        </form>
+      </Form>
+    </div>
+  );
+}
