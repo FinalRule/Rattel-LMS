@@ -11,22 +11,21 @@ export const queryClient = new QueryClient({
           headers: {
             ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
           },
-          credentials: "include",
         });
 
         if (!res.ok) {
           if (res.status === 401) {
-            // Clear token and throw error if unauthorized
+            // Clear token and redirect to login if unauthorized
             localStorage.removeItem('ACCESS_TOKEN');
-            throw new Error('Authentication required');
+            window.location.href = '/login';
+            throw new Error('Session expired. Please login again.');
           }
 
           if (res.status >= 500) {
             throw new Error(`${res.status}: ${res.statusText}`);
           }
 
-          const errorText = await res.text();
-          throw new Error(errorText);
+          throw new Error(`${res.status}: ${await res.text()}`);
         }
 
         return res.json();
@@ -41,3 +40,22 @@ export const queryClient = new QueryClient({
     }
   },
 });
+
+export async function apiRequest(url: string, options: RequestInit = {}) {
+  const token = getToken();
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+      ...options.headers,
+    },
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || response.statusText);
+  }
+
+  return response.json();
+}

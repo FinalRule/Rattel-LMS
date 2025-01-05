@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useToast } from "@/hooks/use-toast";
 import { useState } from 'react';
+import { apiRequest } from '@/lib/api';
 
 type LoginData = {
   email: string;
@@ -19,11 +20,6 @@ type User = {
   fullName: string | null;
 };
 
-type AuthError = {
-  message: string;
-  code?: string;
-};
-
 export function useUser() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -31,27 +27,38 @@ export function useUser() {
 
   const { data: user, error, isLoading } = useQuery<User | null>({
     queryKey: ['/api/user'],
-    queryFn: fetchUser,
+    queryFn: async () => {
+      try {
+        return await apiRequest('/api/user');
+      } catch (error) {
+        if ((error as Error).message.includes('401')) {
+          return null;
+        }
+        throw error;
+      }
+    },
     staleTime: Infinity,
     retry: false,
   });
 
   const loginMutation = useMutation({
     mutationFn: async (userData: LoginData) => {
-      const response = await fetch('/api/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(userData),
-        credentials: 'include',
-      });
+      try {
+        const data = await apiRequest('/api/login', {
+          method: 'POST',
+          body: JSON.stringify(userData),
+        });
 
-      if (!response.ok) {
-        const data = await response.json();
-        setAuthError(data.error || 'Login failed');
-        throw new Error(data.error || 'Login failed');
+        // Store the token
+        if (data.token) {
+          localStorage.setItem('ACCESS_TOKEN', data.token);
+        }
+
+        return data;
+      } catch (error) {
+        setAuthError((error as Error).message);
+        throw error;
       }
-
-      return response.json();
     },
     onSuccess: (data) => {
       queryClient.setQueryData(['/api/user'], data.user);
@@ -72,17 +79,8 @@ export function useUser() {
 
   const logoutMutation = useMutation({
     mutationFn: async () => {
-      const response = await fetch('/api/logout', {
-        method: 'POST',
-        credentials: 'include',
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Logout failed');
-      }
-
-      return response.json();
+      await apiRequest('/api/logout', { method: 'POST' });
+      localStorage.removeItem('ACCESS_TOKEN');
     },
     onSuccess: () => {
       queryClient.setQueryData(['/api/user'], null);
@@ -96,20 +94,22 @@ export function useUser() {
 
   const registerMutation = useMutation({
     mutationFn: async (userData: RegisterData) => {
-      const response = await fetch('/api/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(userData),
-        credentials: 'include',
-      });
+      try {
+        const data = await apiRequest('/api/register', {
+          method: 'POST',
+          body: JSON.stringify(userData),
+        });
 
-      if (!response.ok) {
-        const data = await response.json();
-        setAuthError(data.error || 'Registration failed');
-        throw new Error(data.error || 'Registration failed');
+        // Store the token if provided with registration
+        if (data.token) {
+          localStorage.setItem('ACCESS_TOKEN', data.token);
+        }
+
+        return data;
+      } catch (error) {
+        setAuthError((error as Error).message);
+        throw error;
       }
-
-      return response.json();
     },
     onSuccess: (data) => {
       queryClient.setQueryData(['/api/user'], data.user);
@@ -140,24 +140,4 @@ export function useUser() {
     logout: logoutMutation.mutateAsync,
     register: registerMutation.mutateAsync,
   };
-}
-
-async function fetchUser(): Promise<User | null> {
-  try {
-    const response = await fetch('/api/user', {
-      credentials: 'include'
-    });
-
-    if (!response.ok) {
-      if (response.status === 401) {
-        return null;
-      }
-      throw new Error(await response.text());
-    }
-
-    return response.json();
-  } catch (error) {
-    console.error('Error fetching user:', error);
-    return null;
-  }
 }

@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/select";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 // Step 1 Schema: Basic Information
 const stepOneSchema = z.object({
@@ -33,7 +34,8 @@ type StepOneData = z.infer<typeof stepOneSchema>;
 
 export default function CreateClassForm({ onClose }: { onClose: () => void }) {
   const [currentStep, setCurrentStep] = useState(1);
-  
+  const { toast } = useToast();
+
   const form = useForm<StepOneData>({
     resolver: zodResolver(stepOneSchema),
     defaultValues: {
@@ -56,7 +58,31 @@ export default function CreateClassForm({ onClose }: { onClose: () => void }) {
   const handleNext = async () => {
     const isValid = await form.trigger();
     if (isValid) {
-      setCurrentStep(prev => prev + 1);
+      const formData = form.getValues();
+      // Log the form data to help with debugging
+      console.log('Form data:', formData);
+
+      try {
+        setCurrentStep(prev => prev + 1);
+        toast({
+          title: "Success",
+          description: "Basic information saved successfully",
+        });
+      } catch (error) {
+        toast({
+          title: "Error",
+          description: "Failed to save basic information",
+          variant: "destructive",
+        });
+      }
+    } else {
+      // Show which fields have errors
+      console.log('Form errors:', form.formState.errors);
+      toast({
+        title: "Validation Error",
+        description: "Please fill in all required fields correctly",
+        variant: "destructive",
+      });
     }
   };
 
@@ -80,7 +106,7 @@ export default function CreateClassForm({ onClose }: { onClose: () => void }) {
       </div>
 
       <Form {...form}>
-        <form className="space-y-6">
+        <form onSubmit={(e) => { e.preventDefault(); handleNext(); }} className="space-y-6">
           <FormField
             control={form.control}
             name="name"
@@ -146,10 +172,10 @@ export default function CreateClassForm({ onClose }: { onClose: () => void }) {
           />
 
           <div className="flex justify-end gap-4">
-            <Button variant="outline" onClick={onClose}>
+            <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button onClick={handleNext}>
+            <Button type="submit">
               Next
             </Button>
           </div>

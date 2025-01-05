@@ -1,6 +1,6 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
-import { setupAuth } from "./auth";
+import { setupAuth, crypto } from "./auth";
 import { db } from "@db";
 import {
   users,
@@ -19,14 +19,14 @@ import { eq, count, sql, and, desc } from "drizzle-orm";
 
 // Authentication middleware
 const requireAuth = (req: Request, res: Response, next: NextFunction) => {
-  if (!req.isAuthenticated()) {
+  if (!req.user) {
     return res.status(401).json({ error: "Authentication required" });
   }
   next();
 };
 
 const requireAdmin = (req: Request, res: Response, next: NextFunction) => {
-  if (!req.isAuthenticated()) {
+  if (!req.user) {
     return res.status(401).json({ error: "Authentication required" });
   }
   if (req.user.role !== "admin") {
@@ -41,7 +41,6 @@ export function registerRoutes(app: Express): Server {
 
   // Add auth middleware for all /api routes except auth routes
   app.use("/api/*", (req, res, next) => {
-    // Skip auth check for login and register routes
     if (
       req.path === "/api/login" ||
       req.path === "/api/register" ||
@@ -50,14 +49,14 @@ export function registerRoutes(app: Express): Server {
       return next();
     }
 
-    if (!req.isAuthenticated()) {
+    if (!req.user) {
       return res.status(401).json({ error: "Authentication required" });
     }
     next();
   });
 
   // Price Plans routes - all require authentication
-  app.get("/api/price-plans", async (req, res) => {
+  app.get("/api/price-plans", requireAuth, async (req, res) => {
     try {
       const allPricePlans = await db.query.pricePlans.findMany({
         with: {
@@ -72,7 +71,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Teachers routes - all require authentication
-  app.get("/api/teachers", async (req, res) => {
+  app.get("/api/teachers", requireAuth, async (req, res) => {
     try {
       const allTeachers = await db.query.teachers.findMany({
         with: {
@@ -86,7 +85,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Classes routes - all require authentication
-  app.get("/api/classes", async (req, res) => {
+  app.get("/api/classes", requireAuth, async (req, res) => {
     try {
       const allClasses = await db.query.classes.findMany({
         with: {
@@ -109,7 +108,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.post("/api/classes", async (req, res) => {
+  app.post("/api/classes", requireAuth, async (req, res) => {
     try {
       const {
         name,
@@ -227,7 +226,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.put("/api/classes/:id", async (req, res) => {
+  app.put("/api/classes/:id", requireAuth, async (req, res) => {
     try {
       const classId = req.params.id;
       const {
@@ -290,7 +289,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   //Subjects routes - all require authentication
-  app.get("/api/subjects", async (req, res) => {
+  app.get("/api/subjects", requireAuth, async (req, res) => {
     const allSubjects = await db.select().from(subjects);
     res.json(allSubjects);
   });
@@ -347,18 +346,18 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Sessions - require auth for all operations
-  app.get("/api/sessions", async (req, res) => {
+  app.get("/api/sessions", requireAuth, async (req, res) => {
     const allSessions = await db.select().from(sessions);
     res.json(allSessions);
   });
 
-  app.post("/api/sessions", async (req, res) => {
+  app.post("/api/sessions", requireAuth, async (req, res) => {
     const session = await db.insert(sessions).values(req.body).returning();
     res.json(session[0]);
   });
 
   // Session Attendance - require auth for all operations
-  app.patch("/api/sessions/:id/attendance", async (req, res) => {
+  app.patch("/api/sessions/:id/attendance", requireAuth, async (req, res) => {
     const { id } = req.params;
     const { userId, status, joinTime, leaveTime } = req.body;
 
@@ -381,18 +380,18 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Payments - require auth for all operations
-  app.get("/api/payments", async (req, res) => {
+  app.get("/api/payments", requireAuth, async (req, res) => {
     const allPayments = await db.select().from(payments);
     res.json(allPayments);
   });
 
-  app.post("/api/payments", async (req, res) => {
+  app.post("/api/payments", requireAuth, async (req, res) => {
     const payment = await db.insert(payments).values(req.body).returning();
     res.json(payment[0]);
   });
 
   // Analytics endpoints - require auth for all operations
-  app.get("/api/analytics/attendance", async (req, res) => {
+  app.get("/api/analytics/attendance", requireAuth, async (req, res) => {
     const attendanceStats = await db
       .select({
         sessionId: sessionAttendance.sessionId,
@@ -405,7 +404,7 @@ export function registerRoutes(app: Express): Server {
     res.json(attendanceStats);
   });
 
-  app.get("/api/analytics/financial", async (req, res) => {
+  app.get("/api/analytics/financial", requireAuth, async (req, res) => {
     const financialStats = await db
       .select({
         totalAmount: payments.amount,
@@ -419,7 +418,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Students - require auth for all operations
-  app.get("/api/students", async (req, res) => {
+  app.get("/api/students", requireAuth, async (req, res) => {
     try {
       const allStudents = await db.query.students.findMany({
         with: {
@@ -475,11 +474,11 @@ export function registerRoutes(app: Express): Server {
         return res.status(400).json({ error: "Email already exists" });
       }
 
-      // Hash the password
-      const hashedPassword = await crypto.hash(password);
-
       // Create user and student in a transaction
       const [student] = await db.transaction(async (tx) => {
+        // Hash the password before creating the user
+        const hashedPassword = await crypto.hash(password);
+
         // Create user first
         const [newUser] = await tx
           .insert(users)
@@ -518,7 +517,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Student Stats - require auth for all operations
-  app.get("/api/students/:id/stats", async (req, res) => {
+  app.get("/api/students/:id/stats", requireAuth, async (req, res) => {
     try {
       const studentId = req.params.id;
 
@@ -585,7 +584,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Student Financials - require auth for all operations
-  app.get("/api/students/:id/financials", async (req, res) => {
+  app.get("/api/students/:id/financials", requireAuth, async (req, res) => {
     try {
       const studentId = req.params.id;
       const currentDate = new Date();
@@ -652,11 +651,3 @@ export function registerRoutes(app: Express): Server {
   const httpServer = createServer(app);
   return httpServer;
 }
-
-const crypto = {
-  hash: async (password: string) => {
-    const salt = randomBytes(16).toString("hex");
-    const buf = (await scryptAsync(password, salt, 64)) as Buffer;
-    return `${buf.toString("hex")}.${salt}`;
-  },
-};
