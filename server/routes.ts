@@ -43,8 +43,16 @@ export function registerRoutes(app: Express): Server {
   // Set up authentication routes first
   setupAuth(app);
 
+  // Add auth middleware for all /api routes
+  app.use("/api/*", (req, res, next) => {
+    if (!req.isAuthenticated() && req.path !== "/api/login" && req.path !== "/api/register") {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    next();
+  });
+
   // Price Plans routes - all require authentication
-  app.get("/api/price-plans", requireAuth, async (req, res) => {
+  app.get("/api/price-plans", async (req, res) => {
     try {
       const allPricePlans = await db.query.pricePlans.findMany({
         with: {
@@ -59,7 +67,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Teachers routes - all require authentication
-  app.get("/api/teachers", requireAuth, async (req, res) => {
+  app.get("/api/teachers", async (req, res) => {
     try {
       const allTeachers = await db.query.teachers.findMany({
         with: {
@@ -73,7 +81,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Classes routes - all require authentication
-  app.get("/api/classes", requireAuth, async (req, res) => {
+  app.get("/api/classes", async (req, res) => {
     try {
       const allClasses = await db.query.classes.findMany({
         with: {
@@ -96,7 +104,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.post("/api/classes", requireAuth, async (req, res) => {
+  app.post("/api/classes", async (req, res) => {
     try {
       const {
         name,
@@ -173,7 +181,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   //Subjects routes - all require authentication
-  app.get("/api/subjects", requireAuth, async (req, res) => {
+  app.get("/api/subjects", async (req, res) => {
     const allSubjects = await db.select().from(subjects);
     res.json(allSubjects);
   });
@@ -230,18 +238,18 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Sessions - require auth for all operations
-  app.get("/api/sessions", requireAuth, async (req, res) => {
+  app.get("/api/sessions", async (req, res) => {
     const allSessions = await db.select().from(sessions);
     res.json(allSessions);
   });
 
-  app.post("/api/sessions", requireAuth, async (req, res) => {
+  app.post("/api/sessions", async (req, res) => {
     const session = await db.insert(sessions).values(req.body).returning();
     res.json(session[0]);
   });
 
   // Session Attendance - require auth for all operations
-  app.patch("/api/sessions/:id/attendance", requireAuth, async (req, res) => {
+  app.patch("/api/sessions/:id/attendance", async (req, res) => {
     const { id } = req.params;
     const { userId, status, joinTime, leaveTime } = req.body;
 
@@ -264,18 +272,18 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Payments - require auth for all operations
-  app.get("/api/payments", requireAuth, async (req, res) => {
+  app.get("/api/payments", async (req, res) => {
     const allPayments = await db.select().from(payments);
     res.json(allPayments);
   });
 
-  app.post("/api/payments", requireAuth, async (req, res) => {
+  app.post("/api/payments", async (req, res) => {
     const payment = await db.insert(payments).values(req.body).returning();
     res.json(payment[0]);
   });
 
   // Analytics endpoints - require auth for all operations
-  app.get("/api/analytics/attendance", requireAuth, async (req, res) => {
+  app.get("/api/analytics/attendance", async (req, res) => {
     const attendanceStats = await db
       .select({
         sessionId: sessionAttendance.sessionId,
@@ -288,7 +296,7 @@ export function registerRoutes(app: Express): Server {
     res.json(attendanceStats);
   });
 
-  app.get("/api/analytics/financial", requireAuth, async (req, res) => {
+  app.get("/api/analytics/financial", async (req, res) => {
     const financialStats = await db
       .select({
         totalAmount: payments.amount,
@@ -302,7 +310,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Students - require auth for all operations
-  app.get("/api/students", requireAuth, async (req, res) => {
+  app.get("/api/students", async (req, res) => {
     try {
       const allStudents = await db.query.students.findMany({
         with: {
@@ -401,7 +409,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Student Stats - require auth for all operations
-  app.get("/api/students/:id/stats", requireAuth, async (req, res) => {
+  app.get("/api/students/:id/stats", async (req, res) => {
     try {
       const studentId = req.params.id;
 
@@ -468,7 +476,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Student Financials - require auth for all operations
-  app.get("/api/students/:id/financials", requireAuth, async (req, res) => {
+  app.get("/api/students/:id/financials", async (req, res) => {
     try {
       const studentId = req.params.id;
       const currentDate = new Date();

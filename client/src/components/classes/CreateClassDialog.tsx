@@ -244,9 +244,9 @@ export default function CreateClassDialog({ open, onOpenChange }: CreateClassDia
                   name="name"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Class Name</FormLabel>
+                      <FormLabel htmlFor="class-name">Class Name</FormLabel>
                       <FormControl>
-                        <Input {...field} id="name" />
+                        <Input {...field} id="class-name" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -258,10 +258,10 @@ export default function CreateClassDialog({ open, onOpenChange }: CreateClassDia
                   name="teacherId"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Teacher</FormLabel>
+                      <FormLabel htmlFor="teacher-select">Teacher</FormLabel>
                       <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>
-                          <SelectTrigger id="teacherId">
+                          <SelectTrigger id="teacher-select">
                             <SelectValue placeholder="Select a teacher" />
                           </SelectTrigger>
                         </FormControl>
@@ -283,10 +283,10 @@ export default function CreateClassDialog({ open, onOpenChange }: CreateClassDia
                   name="pricePlanId"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Price Plan</FormLabel>
+                      <FormLabel htmlFor="price-plan-select">Price Plan</FormLabel>
                       <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>
-                          <SelectTrigger id="pricePlanId">
+                          <SelectTrigger id="price-plan-select">
                             <SelectValue placeholder="Select a price plan" />
                           </SelectTrigger>
                         </FormControl>
