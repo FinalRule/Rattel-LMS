@@ -38,9 +38,9 @@ const createPricePlanSchema = z.object({
   sessionsPerMonth: z.coerce.number().min(1, "Must have at least 1 session per month").max(30, "Maximum 30 sessions per month"),
   monthlyFee: z.coerce.number().min(0, "Price must be non-negative"),
   currency: z.string().min(1, "Currency is required"),
-  promotionalPrice: z.coerce.number().optional(),
-  promotionValidUntil: z.string().optional(),
-  minimumCommitment: z.coerce.number().optional(),
+  promotionalPrice: z.coerce.number().nullable().optional(),
+  promotionValidUntil: z.string().nullable().optional(),
+  minimumCommitment: z.coerce.number().nullable().optional(),
   isTrialEligible: z.boolean().default(false),
   isActive: z.boolean().default(true),
 });
@@ -52,6 +52,20 @@ interface CreatePricePlanDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
+const defaultValues: Partial<CreatePricePlanFormData> = {
+  name: "",
+  subjectId: undefined,
+  durationPerSession: 60,
+  sessionsPerMonth: 4,
+  monthlyFee: 0,
+  currency: "USD",
+  promotionalPrice: null,
+  promotionValidUntil: null,
+  minimumCommitment: null,
+  isTrialEligible: false,
+  isActive: true,
+};
+
 export default function CreatePricePlanDialog({
   open,
   onOpenChange,
@@ -62,13 +76,8 @@ export default function CreatePricePlanDialog({
 
   const form = useForm<CreatePricePlanFormData>({
     resolver: zodResolver(createPricePlanSchema),
-    defaultValues: {
-      durationPerSession: 60,
-      sessionsPerMonth: 4,
-      currency: "USD",
-      isTrialEligible: false,
-      isActive: true,
-    },
+    defaultValues,
+    mode: "onChange"
   });
 
   const { data: subjects } = useQuery<SelectSubject[]>({
@@ -98,7 +107,7 @@ export default function CreatePricePlanDialog({
         description: "Price plan created successfully",
       });
       onOpenChange(false);
-      form.reset();
+      form.reset(defaultValues);
       setStep(1);
     },
     onError: (error) => {
@@ -111,7 +120,6 @@ export default function CreatePricePlanDialog({
   });
 
   const validateCurrentStep = async () => {
-    const formData = form.getValues();
     let isValid = false;
 
     switch (step) {
@@ -148,8 +156,16 @@ export default function CreatePricePlanDialog({
     createPricePlanMutation.mutate(data);
   };
 
+  const onDialogClose = (open: boolean) => {
+    if (!open) {
+      form.reset(defaultValues);
+      setStep(1);
+    }
+    onOpenChange(open);
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={onDialogClose}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>Create New Price Plan</DialogTitle>
@@ -173,7 +189,7 @@ export default function CreatePricePlanDialog({
                     <FormItem>
                       <FormLabel>Plan Name</FormLabel>
                       <FormControl>
-                        <Input {...field} />
+                        <Input placeholder="Enter plan name" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -186,7 +202,11 @@ export default function CreatePricePlanDialog({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Subject</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <Select
+                        onValueChange={field.onChange}
+                        defaultValue={field.value}
+                        value={field.value}
+                      >
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Select a subject" />
@@ -217,7 +237,8 @@ export default function CreatePricePlanDialog({
                       <FormLabel>Duration per Session (minutes)</FormLabel>
                       <FormControl>
                         <Input 
-                          type="number" 
+                          type="number"
+                          placeholder="Enter duration"
                           {...field}
                         />
                       </FormControl>
@@ -234,7 +255,8 @@ export default function CreatePricePlanDialog({
                       <FormLabel>Sessions per Month</FormLabel>
                       <FormControl>
                         <Input 
-                          type="number" 
+                          type="number"
+                          placeholder="Enter sessions count"
                           {...field}
                         />
                       </FormControl>
@@ -255,7 +277,8 @@ export default function CreatePricePlanDialog({
                       <FormLabel>Monthly Fee</FormLabel>
                       <FormControl>
                         <Input 
-                          type="number" 
+                          type="number"
+                          placeholder="Enter monthly fee"
                           {...field}
                         />
                       </FormControl>
@@ -270,7 +293,11 @@ export default function CreatePricePlanDialog({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Currency</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <Select
+                        onValueChange={field.onChange}
+                        defaultValue={field.value}
+                        value={field.value}
+                      >
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Select currency" />
@@ -295,8 +322,10 @@ export default function CreatePricePlanDialog({
                       <FormLabel>Promotional Price (Optional)</FormLabel>
                       <FormControl>
                         <Input 
-                          type="number" 
+                          type="number"
+                          placeholder="Enter promotional price"
                           {...field}
+                          value={field.value ?? ''}
                         />
                       </FormControl>
                       <FormMessage />
@@ -311,7 +340,11 @@ export default function CreatePricePlanDialog({
                     <FormItem>
                       <FormLabel>Promotion Valid Until (Optional)</FormLabel>
                       <FormControl>
-                        <Input type="date" {...field} />
+                        <Input 
+                          type="date"
+                          {...field}
+                          value={field.value ?? ''}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -326,8 +359,10 @@ export default function CreatePricePlanDialog({
                       <FormLabel>Minimum Commitment (months)</FormLabel>
                       <FormControl>
                         <Input 
-                          type="number" 
+                          type="number"
+                          placeholder="Enter minimum months"
                           {...field}
+                          value={field.value ?? ''}
                         />
                       </FormControl>
                       <FormMessage />
@@ -365,7 +400,7 @@ export default function CreatePricePlanDialog({
                   Previous
                 </Button>
               )}
-              <Button type="submit">
+              <Button type="submit" className="ml-auto">
                 {step === 3 ? "Create Plan" : "Next"}
               </Button>
             </div>
