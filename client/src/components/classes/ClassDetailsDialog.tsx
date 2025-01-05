@@ -22,23 +22,23 @@ interface ClassStats {
   totalSessions: number;
   completedSessions: number;
   averageAttendance: number;
-  studentProgress: {
+  studentProgress?: Array<{
     studentId: string;
     studentName: string;
     attendanceRate: number;
     averageScore: number;
-  }[];
+  }>;
 }
 
 interface ClassFinancials {
   totalRevenue: number;
   teacherPayouts: number;
   profitMargin: number;
-  monthlyBreakdown: {
+  monthlyBreakdown: Array<{
     month: string;
     revenue: number;
     expenses: number;
-  }[];
+  }>;
 }
 
 export default function ClassDetailsDialog({
@@ -52,6 +52,7 @@ export default function ClassDetailsDialog({
 
   const { data: financials, isLoading: loadingFinancials } = useQuery<ClassFinancials>({
     queryKey: ["/api/classes", classData.id, "financials"],
+    enabled: !!classData.id,
   });
 
   return (
@@ -81,7 +82,7 @@ export default function ClassDetailsDialog({
                 <CardContent>
                   <dl className="grid grid-cols-2 gap-2 text-sm">
                     <dt className="font-medium">Teacher</dt>
-                    <dd>{classData.teacher?.user?.fullName || 'Unassigned'}</dd>
+                    <dd>{classData.teacherId || 'Unassigned'}</dd>
                     <dt className="font-medium">Start Date</dt>
                     <dd>{new Date(classData.startDate).toLocaleDateString()}</dd>
                     <dt className="font-medium">Duration</dt>
@@ -100,7 +101,7 @@ export default function ClassDetailsDialog({
                 <div className="flex items-center justify-center h-48">
                   <Loader2 className="h-8 w-8 animate-spin" />
                 </div>
-              ) : (
+              ) : stats ? (
                 <Card>
                   <CardHeader>
                     <CardTitle>Class Statistics</CardTitle>
@@ -108,19 +109,24 @@ export default function ClassDetailsDialog({
                   <CardContent>
                     <dl className="grid grid-cols-2 gap-2 text-sm">
                       <dt className="font-medium">Total Sessions</dt>
-                      <dd>{stats?.totalSessions}</dd>
+                      <dd>{stats.totalSessions}</dd>
                       <dt className="font-medium">Completed Sessions</dt>
-                      <dd>{stats?.completedSessions}</dd>
+                      <dd>{stats.completedSessions}</dd>
                       <dt className="font-medium">Average Attendance</dt>
-                      <dd>{stats?.averageAttendance}%</dd>
+                      <dd>{stats.averageAttendance}%</dd>
                     </dl>
+                  </CardContent>
+                </Card>
+              ) : (
+                <Card>
+                  <CardContent className="p-6 text-center text-muted-foreground">
+                    No statistics available
                   </CardContent>
                 </Card>
               )}
             </TabsContent>
 
             <TabsContent value="sessions" className="space-y-4">
-              {/* Add session listing and details here */}
               <Card>
                 <CardHeader>
                   <CardTitle>Session Schedule</CardTitle>
@@ -138,14 +144,14 @@ export default function ClassDetailsDialog({
                 <div className="flex items-center justify-center h-48">
                   <Loader2 className="h-8 w-8 animate-spin" />
                 </div>
-              ) : (
+              ) : stats?.studentProgress && stats.studentProgress.length > 0 ? (
                 <Card>
                   <CardHeader>
                     <CardTitle>Student Progress</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
-                      {stats?.studentProgress.map((student) => (
+                      {stats.studentProgress.map((student) => (
                         <div key={student.studentId} className="border-b pb-4">
                           <h4 className="font-medium">{student.studentName}</h4>
                           <dl className="grid grid-cols-2 gap-2 text-sm mt-2">
@@ -159,6 +165,12 @@ export default function ClassDetailsDialog({
                     </div>
                   </CardContent>
                 </Card>
+              ) : (
+                <Card>
+                  <CardContent className="p-6 text-center text-muted-foreground">
+                    No student progress data available
+                  </CardContent>
+                </Card>
               )}
             </TabsContent>
 
@@ -167,7 +179,7 @@ export default function ClassDetailsDialog({
                 <div className="flex items-center justify-center h-48">
                   <Loader2 className="h-8 w-8 animate-spin" />
                 </div>
-              ) : (
+              ) : financials ? (
                 <div className="space-y-4">
                   <Card>
                     <CardHeader>
@@ -176,11 +188,11 @@ export default function ClassDetailsDialog({
                     <CardContent>
                       <dl className="grid grid-cols-2 gap-2 text-sm">
                         <dt className="font-medium">Total Revenue</dt>
-                        <dd>{classData.currency} {financials?.totalRevenue}</dd>
+                        <dd>{classData.currency} {financials.totalRevenue}</dd>
                         <dt className="font-medium">Teacher Payouts</dt>
-                        <dd>{classData.currency} {financials?.teacherPayouts}</dd>
+                        <dd>{classData.currency} {financials.teacherPayouts}</dd>
                         <dt className="font-medium">Profit Margin</dt>
-                        <dd>{financials?.profitMargin}%</dd>
+                        <dd>{financials.profitMargin}%</dd>
                       </dl>
                     </CardContent>
                   </Card>
@@ -191,7 +203,7 @@ export default function ClassDetailsDialog({
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-2">
-                        {financials?.monthlyBreakdown.map((month) => (
+                        {financials.monthlyBreakdown.map((month) => (
                           <div key={month.month} className="grid grid-cols-3 text-sm">
                             <span>{month.month}</span>
                             <span>Revenue: {classData.currency} {month.revenue}</span>
@@ -202,6 +214,12 @@ export default function ClassDetailsDialog({
                     </CardContent>
                   </Card>
                 </div>
+              ) : (
+                <Card>
+                  <CardContent className="p-6 text-center text-muted-foreground">
+                    No financial data available
+                  </CardContent>
+                </Card>
               )}
             </TabsContent>
           </div>
