@@ -233,7 +233,7 @@ export default function CreateClassForm({ onClose }: { onClose: () => void }) {
             </Button>
             <Button 
               type="submit" 
-              disabled={!form.formState.isValid || createClassMutation.isPending}
+  disabled={createClassMutation.isPending}
             >
               {createClassMutation.isPending && (
                 <Loader2 className="h-4 w-4 animate-spin mr-2" />
