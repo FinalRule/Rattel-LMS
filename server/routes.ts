@@ -181,6 +181,47 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Add this route after the existing POST /api/classes route
+  app.post("/api/price-plans", requireAuth, async (req, res) => {
+    try {
+      const {
+        name,
+        subjectId,
+        description,
+        monthlyPrice,
+        currency,
+        features,
+        isActive
+      } = req.body;
+
+      // Create the price plan
+      const [newPlan] = await db
+        .insert(pricePlans)
+        .values({
+          name,
+          subjectId,
+          description,
+          monthlyPrice: monthlyPrice.toString(),
+          currency,
+          features,
+          isActive: isActive ?? true,
+        })
+        .returning();
+
+      // Fetch the created plan with related data
+      const planWithRelations = await db.query.pricePlans.findFirst({
+        where: eq(pricePlans.id, newPlan.id),
+        with: {
+          subject: true,
+        },
+      });
+
+      res.json(planWithRelations);
+    } catch (error: any) {
+      console.error("Error creating price plan:", error);
+      res.status(400).json({ error: error.message });
+    }
+  });
+
   app.put("/api/classes/:id", async (req, res) => {
     try {
       const classId = req.params.id;
