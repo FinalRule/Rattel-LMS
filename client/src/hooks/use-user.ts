@@ -39,15 +39,24 @@ async function handleRequest(
       credentials: "include",
     });
 
+    const data = await response.json();
+
     if (!response.ok) {
-      const data = await response.json();
-      return { ok: false, message: data.error || response.statusText };
+      return { 
+        ok: false, 
+        message: data.error || response.statusText 
+      };
     }
 
-    const data = await response.json();
-    return { ok: true, user: data.user };
+    return { 
+      ok: true, 
+      user: data.user 
+    };
   } catch (e: any) {
-    return { ok: false, message: e.toString() };
+    return { 
+      ok: false, 
+      message: e.toString() 
+    };
   }
 }
 
@@ -85,8 +94,8 @@ export function useUser() {
   const loginMutation = useMutation<RequestResult, Error, LoginData>({
     mutationFn: (userData) => handleRequest('/api/login', 'POST', userData),
     onSuccess: (result) => {
-      if (result.ok) {
-        queryClient.invalidateQueries({ queryKey: ['/api/user'] });
+      if (result.ok && result.user) {
+        queryClient.setQueryData(['/api/user'], result.user);
         toast({
           title: "Success",
           description: "Logged in successfully",
@@ -117,8 +126,8 @@ export function useUser() {
   const registerMutation = useMutation<RequestResult, Error, RegisterData>({
     mutationFn: (userData) => handleRequest('/api/register', 'POST', userData),
     onSuccess: (result) => {
-      if (result.ok) {
-        queryClient.invalidateQueries({ queryKey: ['/api/user'] });
+      if (result.ok && result.user) {
+        queryClient.setQueryData(['/api/user'], result.user);
         toast({
           title: "Success",
           description: "Registration successful",

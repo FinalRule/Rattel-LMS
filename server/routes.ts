@@ -16,10 +16,6 @@ import {
   pricePlans,
 } from "@db/schema";
 import { eq, count, sql, and, desc } from "drizzle-orm";
-import { scrypt, randomBytes } from "crypto";
-import { promisify } from "util";
-
-const scryptAsync = promisify(scrypt);
 
 // Authentication middleware
 const requireAuth = (req: Request, res: Response, next: NextFunction) => {
@@ -43,9 +39,18 @@ export function registerRoutes(app: Express): Server {
   // Set up authentication routes first
   setupAuth(app);
 
-  // Add auth middleware for all /api routes
+  // Add auth middleware for all /api routes except auth routes
   app.use("/api/*", (req, res, next) => {
-    if (!req.isAuthenticated() && req.path !== "/api/login" && req.path !== "/api/register") {
+    // Skip auth check for login and register routes
+    if (
+      req.path === "/api/login" ||
+      req.path === "/api/register" ||
+      req.path === "/api/user"
+    ) {
+      return next();
+    }
+
+    if (!req.isAuthenticated()) {
       return res.status(401).json({ error: "Authentication required" });
     }
     next();
