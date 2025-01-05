@@ -233,6 +233,11 @@ export type NewUser = typeof users.$inferInsert;
 export type Teacher = typeof teachers.$inferSelect;
 export type NewTeacher = typeof teachers.$inferInsert;
 
+// Add SelectTeacher type that includes user information
+export type SelectTeacher = Teacher & {
+  user: User;
+};
+
 export type Student = typeof students.$inferSelect;
 export type NewStudent = typeof students.$inferInsert;
 
@@ -269,3 +274,8 @@ export const selectSessionSchema = createSelectSchema(sessions);
 
 export const insertPaymentSchema = createInsertSchema(payments);
 export const selectPaymentSchema = createSelectSchema(payments);
+
+// Add TeacherWithUser schema
+export const selectTeacherWithUserSchema = createSelectSchema(teachers).extend({
+  user: selectUserSchema
+});

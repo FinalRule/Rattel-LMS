@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import SubjectList from "@/components/subjects/SubjectList";
 import TeacherList from "@/components/teachers/TeacherList";
 import CreateSubjectDialog from "@/components/subjects/CreateSubjectDialog";
+import CreateTeacherDialog from "@/components/teachers/CreateTeacherDialog";
 
 interface AttendanceStats {
   sessionId: string;
@@ -40,6 +41,7 @@ interface FinancialStats {
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState("overview");
   const [isCreateSubjectOpen, setIsCreateSubjectOpen] = useState(false);
+  const [isCreateTeacherOpen, setIsCreateTeacherOpen] = useState(false);
 
   const { data: attendanceStats, isLoading: loadingAttendance } = useQuery<AttendanceStats[]>({
     queryKey: ["/api/analytics/attendance"],
@@ -200,12 +202,16 @@ export default function AdminDashboard() {
         <TabsContent value="teachers" className="space-y-4">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl font-bold">Teacher Management</h2>
-            <Button>
+            <Button onClick={() => setIsCreateTeacherOpen(true)}>
               <Plus className="w-4 h-4 mr-2" />
               Add Teacher
             </Button>
           </div>
           <TeacherList />
+          <CreateTeacherDialog 
+            open={isCreateTeacherOpen}
+            onOpenChange={setIsCreateTeacherOpen}
+          />
         </TabsContent>
       </Tabs>
     </div>
