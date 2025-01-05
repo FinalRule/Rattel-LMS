@@ -11,12 +11,15 @@ import {
   payments,
   sessionAttendance,
   insertUserSchema,
-  insertTeacherSchema,
   students,
   classEnrollments,
   pricePlans,
 } from "@db/schema";
 import { eq, count, sql, and, desc } from "drizzle-orm";
+import { scrypt, randomBytes } from "crypto";
+import { promisify } from "util";
+
+const scryptAsync = promisify(scrypt);
 
 // Authentication middleware
 const requireAuth = (req: Request, res: Response, next: NextFunction) => {
@@ -37,10 +40,10 @@ const requireAdmin = (req: Request, res: Response, next: NextFunction) => {
 };
 
 export function registerRoutes(app: Express): Server {
-  // Auth routes
+  // Set up authentication routes first
   setupAuth(app);
 
-  // Price Plans - require auth for all operations
+  // Price Plans routes - all require authentication
   app.get("/api/price-plans", requireAuth, async (req, res) => {
     try {
       const allPricePlans = await db.query.pricePlans.findMany({
@@ -55,33 +58,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.post("/api/price-plans", requireAdmin, async (req, res) => {
-    try {
-      const [pricePlan] = await db
-        .insert(pricePlans)
-        .values({
-          name: req.body.name,
-          subjectId: req.body.subjectId,
-          durationPerSession: req.body.durationPerSession,
-          sessionsPerMonth: req.body.sessionsPerMonth,
-          monthlyFee: req.body.monthlyFee,
-          currency: req.body.currency,
-          promotionalPrice: req.body.promotionalPrice,
-          promotionValidUntil: req.body.promotionValidUntil ? new Date(req.body.promotionValidUntil) : null,
-          minimumCommitment: req.body.minimumCommitment,
-          isTrialEligible: req.body.isTrialEligible,
-          isActive: true,
-        })
-        .returning();
-
-      res.json(pricePlan);
-    } catch (error: any) {
-      console.error("Error creating price plan:", error);
-      res.status(400).json({ error: error.message });
-    }
-  });
-
-  // Teachers - require auth for all operations
+  // Teachers routes - all require authentication
   app.get("/api/teachers", requireAuth, async (req, res) => {
     try {
       const allTeachers = await db.query.teachers.findMany({
@@ -95,96 +72,107 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.post("/api/teachers", requireAdmin, async (req, res) => {
+  // Classes routes - all require authentication
+  app.get("/api/classes", requireAuth, async (req, res) => {
     try {
-      const {
-        email,
-        password,
-        fullName,
-        phone,
-        whatsapp,
-        timezone,
-        bio,
-        residenceCity,
-        googleAccount,
-        availabilitySchedule,
-        bufferTimePreference,
-        baseSalaryPerHour,
-        notes
-      } = req.body;
-
-      // Validate user input
-      const userResult = insertUserSchema.safeParse({
-        email,
-        password,
-        fullName,
-        phone,
-        whatsapp,
-        timezone,
-        role: "teacher",
+      const allClasses = await db.query.classes.findMany({
+        with: {
+          teacher: {
+            with: {
+              user: true,
+            }
+          },
+          pricePlan: {
+            with: {
+              subject: true,
+            }
+          },
+        },
       });
-
-      if (!userResult.success) {
-        return res.status(400).json({
-          error: "Invalid input",
-          details: userResult.error.issues
-        });
-      }
-
-      // Check if user already exists
-      const existingUser = await db.query.users.findFirst({
-        where: eq(users.email, email),
-      });
-
-      if (existingUser) {
-        return res.status(400).json({ error: "Email already exists" });
-      }
-
-      // Hash the password
-      const hashedPassword = await crypto.hash(password);
-
-      // Create user and teacher in a transaction
-      const [teacher] = await db.transaction(async (tx) => {
-        // Create user first
-        const [newUser] = await tx
-          .insert(users)
-          .values({
-            email,
-            password: hashedPassword,
-            fullName,
-            phone,
-            whatsapp,
-            timezone,
-            role: "teacher",
-          })
-          .returning();
-
-        // Create teacher profile
-        const [newTeacher] = await tx
-          .insert(teachers)
-          .values({
-            userId: newUser.id,
-            bio,
-            residenceCity,
-            googleAccount,
-            availabilitySchedule,
-            bufferTimePreference,
-            baseSalaryPerHour,
-            notes,
-          })
-          .returning();
-
-        return [{ ...newTeacher, user: newUser }];
-      });
-
-      res.json(teacher);
+      res.json(allClasses);
     } catch (error: any) {
-      console.error("Error creating teacher:", error);
+      console.error("Error fetching classes:", error);
       res.status(500).json({ error: error.message });
     }
   });
 
-  // Subjects - require auth for all operations
+  app.post("/api/classes", requireAuth, async (req, res) => {
+    try {
+      const {
+        name,
+        teacherId,
+        pricePlanId,
+        startDate,
+        defaultDuration,
+        schedule,
+        monthlyPrice,
+        currency,
+        teacherHourlyRate,
+        bufferTime,
+        selectedStudentIds
+      } = req.body;
+
+      // Create the class
+      const [newClass] = await db.transaction(async (tx) => {
+        // Create the class first
+        const [createdClass] = await tx
+          .insert(classes)
+          .values({
+            name,
+            teacherId,
+            pricePlanId,
+            startDate: new Date(startDate),
+            defaultDuration,
+            schedule,
+            monthlyPrice: monthlyPrice.toString(),
+            currency,
+            teacherHourlyRate: teacherHourlyRate.toString(),
+            bufferTime,
+            status: "active",
+          })
+          .returning();
+
+        // If students are selected, create enrollments
+        if (selectedStudentIds?.length > 0) {
+          await tx
+            .insert(classEnrollments)
+            .values(
+              selectedStudentIds.map((studentId: string) => ({
+                classId: createdClass.id,
+                studentId,
+                joinedAt: new Date(),
+              }))
+            );
+        }
+
+        return [createdClass];
+      });
+
+      // Fetch the created class with related data
+      const classWithRelations = await db.query.classes.findFirst({
+        where: eq(classes.id, newClass.id),
+        with: {
+          teacher: {
+            with: {
+              user: true,
+            }
+          },
+          pricePlan: {
+            with: {
+              subject: true,
+            }
+          },
+        },
+      });
+
+      res.json(classWithRelations);
+    } catch (error: any) {
+      console.error("Error creating class:", error);
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  //Subjects routes - all require authentication
   app.get("/api/subjects", requireAuth, async (req, res) => {
     const allSubjects = await db.select().from(subjects);
     res.json(allSubjects);
@@ -240,140 +228,6 @@ export function registerRoutes(app: Express): Server {
       res.status(400).json({ error: error.message });
     }
   });
-
-  // Classes - require auth for all operations
-  app.get("/api/classes", requireAuth, async (req, res) => {
-    try {
-      const allClasses = await db.query.classes.findMany({
-        with: {
-          teacher: {
-            with: {
-              user: true,
-            }
-          },
-          pricePlan: {
-            with: {
-              subject: true,
-            }
-          },
-        },
-      });
-      res.json(allClasses);
-    } catch (error: any) {
-      console.error("Error fetching classes:", error);
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  app.post("/api/classes", requireAdmin, async (req, res) => {
-    try {
-      const {
-        name,
-        teacherId,
-        pricePlanId,
-        startDate,
-        durationInMonths,
-        defaultDuration,
-        schedule,
-        monthlyPrice,
-        currency,
-        teacherHourlyRate,
-        bufferTime,
-        selectedStudentIds
-      } = req.body;
-
-      // Validate required fields
-      if (!name || !teacherId || !pricePlanId || !defaultDuration || !startDate ||
-          !schedule || !monthlyPrice || !currency || !teacherHourlyRate ||
-          !durationInMonths || !schedule.days || !schedule.times) {
-        return res.status(400).json({
-          error: "Missing required fields",
-          details: "All fields except buffer time and student selection are required"
-        });
-      }
-
-      // Validate if teacher exists
-      const teacher = await db.query.teachers.findFirst({
-        where: eq(teachers.userId, teacherId),
-      });
-
-      if (!teacher) {
-        return res.status(400).json({ error: "Teacher not found" });
-      }
-
-      // Validate if price plan exists
-      const pricePlan = await db.query.pricePlans.findFirst({
-        where: eq(pricePlans.id, pricePlanId),
-      });
-
-      if (!pricePlan) {
-        return res.status(400).json({ error: "Price plan not found" });
-      }
-
-      // Calculate end date based on duration in months
-      const endDate = new Date(startDate);
-      endDate.setMonth(endDate.getMonth() + durationInMonths);
-
-      // Create the class
-      const [newClass] = await db.transaction(async (tx) => {
-        // Create the class first
-        const [createdClass] = await tx
-          .insert(classes)
-          .values({
-            name,
-            teacherId,
-            pricePlanId,
-            startDate: new Date(startDate),
-            defaultDuration,
-            schedule,
-            monthlyPrice,
-            currency,
-            teacherHourlyRate,
-            bufferTime,
-            status: "active",
-          })
-          .returning();
-
-        // If students are selected, create enrollments
-        if (selectedStudentIds?.length > 0) {
-          await tx
-            .insert(classEnrollments)
-            .values(
-              selectedStudentIds.map(studentId => ({
-                classId: createdClass.id,
-                studentId,
-                joinedAt: new Date(),
-              }))
-            );
-        }
-
-        return [createdClass];
-      });
-
-      // Fetch the created class with related data
-      const classWithRelations = await db.query.classes.findFirst({
-        where: eq(classes.id, newClass.id),
-        with: {
-          teacher: {
-            with: {
-              user: true,
-            }
-          },
-          pricePlan: {
-            with: {
-              subject: true,
-            }
-          },
-        },
-      });
-
-      res.json(classWithRelations);
-    } catch (error: any) {
-      console.error("Error creating class:", error);
-      res.status(400).json({ error: error.message });
-    }
-  });
-
 
   // Sessions - require auth for all operations
   app.get("/api/sessions", requireAuth, async (req, res) => {
@@ -677,6 +531,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Create HTTP server
   const httpServer = createServer(app);
   return httpServer;
 }
@@ -688,7 +543,3 @@ const crypto = {
     return `${buf.toString("hex")}.${salt}`;
   },
 };
-
-const scryptAsync = promisify(scrypt);
-import { scrypt, randomBytes } from "crypto";
-import { promisify } from "util";

@@ -29,7 +29,8 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import type { SelectTeacher, SelectPricePlan, SelectSubject } from "@db/schema";
+import type { SelectTeacher, SelectPricePlan } from "@db/schema";
+import { Loader2 } from "lucide-react";
 
 const WEEKDAYS = [
   { label: "Monday", value: "MON" },
@@ -46,7 +47,6 @@ const createClassSchema = z.object({
   teacherId: z.string().uuid("Please select a teacher"),
   pricePlanId: z.string().uuid("Please select a price plan"),
   startDate: z.string().min(1, "Start date is required"),
-  durationInMonths: z.coerce.number().min(1, "Duration must be at least 1 month"),
   defaultDuration: z.coerce.number().min(30, "Duration must be at least 30 minutes"),
   schedule: z.object({
     days: z.array(z.string()).min(1, "Select at least one day"),
@@ -75,8 +75,8 @@ export default function CreateClassDialog({ open, onOpenChange }: CreateClassDia
   const [step, setStep] = useState(1);
   const [selectedDays, setSelectedDays] = useState<string[]>([]);
 
-  // Get current user
-  const { data: user } = useQuery({
+  // Get current user and check authentication
+  const { data: user, isLoading: isUserLoading } = useQuery({
     queryKey: ["/api/user"],
   });
 
@@ -87,7 +87,6 @@ export default function CreateClassDialog({ open, onOpenChange }: CreateClassDia
       teacherId: "",
       pricePlanId: "",
       startDate: new Date().toISOString().split("T")[0],
-      durationInMonths: 1,
       defaultDuration: 60,
       schedule: {
         days: [],
@@ -102,18 +101,13 @@ export default function CreateClassDialog({ open, onOpenChange }: CreateClassDia
   });
 
   // Queries - only enabled when user is authenticated
-  const { data: teachers } = useQuery<SelectTeacher[]>({
+  const { data: teachers, isLoading: isTeachersLoading } = useQuery<SelectTeacher[]>({
     queryKey: ["/api/teachers"],
     enabled: !!user,
   });
 
-  const { data: pricePlans } = useQuery<SelectPricePlan[]>({
+  const { data: pricePlans, isLoading: isPricePlansLoading } = useQuery<SelectPricePlan[]>({
     queryKey: ["/api/price-plans"],
-    enabled: !!user,
-  });
-
-  const { data: students } = useQuery({
-    queryKey: ["/api/students"],
     enabled: !!user,
   });
 
@@ -144,16 +138,9 @@ export default function CreateClassDialog({ open, onOpenChange }: CreateClassDia
       onOpenChange(false);
       form.reset();
       setStep(1);
+      setSelectedDays([]);
     },
     onError: (error: Error) => {
-      if (error.message.includes("401")) {
-        toast({
-          title: "Authentication Required",
-          description: "Please log in to create a class",
-          variant: "destructive",
-        });
-        return;
-      }
       toast({
         title: "Error",
         description: error.message,
@@ -162,46 +149,36 @@ export default function CreateClassDialog({ open, onOpenChange }: CreateClassDia
     },
   });
 
-  const validateCurrentStep = async () => {
-    let isValid = true;
-    const formData = form.getValues();
+  // Show loading state while checking authentication
+  if (isUserLoading || isTeachersLoading || isPricePlansLoading) {
+    return (
+      <div className="flex items-center justify-center p-6">
+        <Loader2 className="h-6 w-6 animate-spin" />
+      </div>
+    );
+  }
 
-    // Check authentication first
-    if (!user) {
-      toast({
-        title: "Authentication Required",
-        description: "Please log in to create a class",
-        variant: "destructive",
-      });
-      return false;
-    }
+  // Show error if not authenticated
+  if (!user) {
+    return (
+      <div className="p-6 text-center">
+        <p className="text-red-500">Please log in to continue</p>
+      </div>
+    );
+  }
+
+  const validateCurrentStep = async () => {
+    const formData = form.getValues();
+    let isValid = true;
 
     if (step === 1) {
-      isValid = Boolean(
-        formData.name &&
-        formData.teacherId &&
-        formData.pricePlanId
-      );
+      isValid = await form.trigger(["name", "teacherId", "pricePlanId"]);
     } else if (step === 2) {
-      isValid = Boolean(
-        formData.startDate &&
-        formData.durationInMonths &&
-        formData.defaultDuration &&
-        formData.defaultDuration >= 30
-      );
+      isValid = await form.trigger(["startDate", "defaultDuration"]);
     } else if (step === 3) {
-      isValid = Boolean(
-        formData.schedule.days.length > 0 &&
-        formData.schedule.times.length > 0
-      );
-    }
-
-    if (!isValid) {
-      toast({
-        title: "Validation Error",
-        description: "Please fill in all required fields",
-        variant: "destructive",
-      });
+      isValid = await form.trigger(["schedule"]);
+    } else if (step === 4) {
+      isValid = await form.trigger(["monthlyPrice", "currency", "teacherHourlyRate"]);
     }
 
     return isValid;
@@ -233,15 +210,6 @@ export default function CreateClassDialog({ open, onOpenChange }: CreateClassDia
   };
 
   const onSubmit = async (data: CreateClassFormData) => {
-    if (!user) {
-      toast({
-        title: "Authentication Required",
-        description: "Please log in to create a class",
-        variant: "destructive",
-      });
-      return;
-    }
-
     if (step < 4) {
       const isValid = await validateCurrentStep();
       if (isValid) {
@@ -355,25 +323,6 @@ export default function CreateClassDialog({ open, onOpenChange }: CreateClassDia
 
                 <FormField
                   control={form.control}
-                  name="durationInMonths"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Duration (months)</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          min="1"
-                          {...field}
-                          id="durationInMonths"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
                   name="defaultDuration"
                   render={({ field }) => (
                     <FormItem>
@@ -389,7 +338,6 @@ export default function CreateClassDialog({ open, onOpenChange }: CreateClassDia
                     </FormItem>
                   )}
                 />
-
                 <FormField
                   control={form.control}
                   name="bufferTime"
@@ -528,36 +476,6 @@ export default function CreateClassDialog({ open, onOpenChange }: CreateClassDia
                     </FormItem>
                   )}
                 />
-                {students && (
-                  <FormField
-                    control={form.control}
-                    name="selectedStudentIds"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Students</FormLabel>
-                        <Select
-                          multiple
-                          onValueChange={(value) => field.onChange(Array.isArray(value) ? value : [value])}
-                          value={field.value}
-                        >
-                          <FormControl>
-                            <SelectTrigger id="selectedStudents">
-                              <SelectValue placeholder="Select students" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {Array.isArray(students) && students.map((student) => (
-                              <SelectItem key={student.id} value={student.id}>
-                                {student.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                )}
               </>
             )}
 
