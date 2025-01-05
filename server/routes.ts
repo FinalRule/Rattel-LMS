@@ -14,6 +14,7 @@ import {
   insertTeacherSchema,
   students,
   classEnrollments,
+  pricePlans,
 } from "@db/schema";
 import { eq, count, sql, and, desc } from "drizzle-orm";
 import { scrypt, randomBytes } from "crypto";
@@ -43,6 +44,47 @@ export function registerRoutes(app: Express): Server {
     }
     next();
   };
+
+  // Price Plans
+  app.get("/api/price-plans", async (req, res) => {
+    try {
+      const allPricePlans = await db.query.pricePlans.findMany({
+        with: {
+          subject: true,
+        },
+      });
+      res.json(allPricePlans);
+    } catch (error: any) {
+      console.error("Error fetching price plans:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/price-plans", requireAdmin, async (req, res) => {
+    try {
+      const [pricePlan] = await db
+        .insert(pricePlans)
+        .values({
+          name: req.body.name,
+          subjectId: req.body.subjectId,
+          durationPerSession: req.body.durationPerSession,
+          sessionsPerMonth: req.body.sessionsPerMonth,
+          monthlyFee: req.body.monthlyFee,
+          currency: req.body.currency,
+          promotionalPrice: req.body.promotionalPrice,
+          promotionValidUntil: req.body.promotionValidUntil ? new Date(req.body.promotionValidUntil) : null,
+          minimumCommitment: req.body.minimumCommitment,
+          isTrialEligible: req.body.isTrialEligible,
+          isActive: true,
+        })
+        .returning();
+
+      res.json(pricePlan);
+    } catch (error: any) {
+      console.error("Error creating price plan:", error);
+      res.status(400).json({ error: error.message });
+    }
+  });
 
   // Teachers
   app.get("/api/teachers", async (req, res) => {
