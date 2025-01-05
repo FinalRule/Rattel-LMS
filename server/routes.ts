@@ -272,24 +272,28 @@ export function registerRoutes(app: Express): Server {
 
   app.post("/api/classes", requireAdmin, async (req, res) => {
     try {
-      const { 
-        name, 
-        teacherId, 
-        pricePlanId, 
-        startDate, 
+      const {
+        name,
+        teacherId,
+        pricePlanId,
+        startDate,
+        durationInMonths,
         defaultDuration,
         schedule,
         monthlyPrice,
         currency,
         teacherHourlyRate,
-        bufferTime 
+        bufferTime,
+        selectedStudentIds
       } = req.body;
 
       // Validate required fields
-      if (!name || !teacherId || !pricePlanId || !defaultDuration || !startDate || !schedule || !monthlyPrice || !currency || !teacherHourlyRate) {
+      if (!name || !teacherId || !pricePlanId || !defaultDuration || !startDate ||
+          !schedule || !monthlyPrice || !currency || !teacherHourlyRate ||
+          !durationInMonths || !schedule.days || !schedule.times) {
         return res.status(400).json({
           error: "Missing required fields",
-          details: "All fields except buffer time are required"
+          details: "All fields except buffer time and student selection are required"
         });
       }
 
@@ -311,23 +315,45 @@ export function registerRoutes(app: Express): Server {
         return res.status(400).json({ error: "Price plan not found" });
       }
 
+      // Calculate end date based on duration in months
+      const endDate = new Date(startDate);
+      endDate.setMonth(endDate.getMonth() + durationInMonths);
+
       // Create the class
-      const [newClass] = await db
-        .insert(classes)
-        .values({
-          name,
-          teacherId,
-          pricePlanId,
-          startDate: new Date(startDate),
-          defaultDuration,
-          schedule,
-          monthlyPrice,
-          currency,
-          teacherHourlyRate,
-          bufferTime,
-          status: "active",
-        })
-        .returning();
+      const [newClass] = await db.transaction(async (tx) => {
+        // Create the class first
+        const [createdClass] = await tx
+          .insert(classes)
+          .values({
+            name,
+            teacherId,
+            pricePlanId,
+            startDate: new Date(startDate),
+            defaultDuration,
+            schedule,
+            monthlyPrice,
+            currency,
+            teacherHourlyRate,
+            bufferTime,
+            status: "active",
+          })
+          .returning();
+
+        // If students are selected, create enrollments
+        if (selectedStudentIds?.length > 0) {
+          await tx
+            .insert(classEnrollments)
+            .values(
+              selectedStudentIds.map(studentId => ({
+                classId: createdClass.id,
+                studentId,
+                joinedAt: new Date(),
+              }))
+            );
+        }
+
+        return [createdClass];
+      });
 
       // Fetch the created class with related data
       const classWithRelations = await db.query.classes.findFirst({

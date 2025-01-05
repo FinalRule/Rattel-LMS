@@ -26,24 +26,40 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import type { SelectTeacher, SelectPricePlan } from "@db/schema";
+import type { SelectTeacher, SelectPricePlan, SelectSubject } from "@db/schema";
+
+const WEEKDAYS = [
+  { label: "Monday", value: "MON" },
+  { label: "Tuesday", value: "TUE" },
+  { label: "Wednesday", value: "WED" },
+  { label: "Thursday", value: "THU" },
+  { label: "Friday", value: "FRI" },
+  { label: "Saturday", value: "SAT" },
+  { label: "Sunday", value: "SUN" },
+] as const;
 
 const createClassSchema = z.object({
   name: z.string().min(1, "Class name is required"),
   teacherId: z.string().uuid("Please select a teacher"),
   pricePlanId: z.string().uuid("Please select a price plan"),
   startDate: z.string().min(1, "Start date is required"),
+  durationInMonths: z.coerce.number().min(1, "Duration must be at least 1 month"),
   defaultDuration: z.coerce.number().min(30, "Duration must be at least 30 minutes"),
   schedule: z.object({
-    days: z.array(z.string()),
-    time: z.string(),
+    days: z.array(z.string()).min(1, "Select at least one day"),
+    times: z.array(z.object({
+      day: z.string(),
+      time: z.string(),
+    })).min(1, "Add at least one time slot"),
   }),
   monthlyPrice: z.coerce.number().min(0, "Price must be non-negative"),
   currency: z.string().min(1, "Currency is required"),
   teacherHourlyRate: z.coerce.number().min(0, "Teacher rate must be non-negative"),
   bufferTime: z.coerce.number().optional(),
+  selectedStudentIds: z.array(z.string().uuid()).optional(),
 });
 
 type CreateClassFormData = z.infer<typeof createClassSchema>;
@@ -60,6 +76,7 @@ export default function CreateClassDialog({
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [step, setStep] = useState(1);
+  const [selectedDays, setSelectedDays] = useState<string[]>([]);
 
   const form = useForm<CreateClassFormData>({
     resolver: zodResolver(createClassSchema),
@@ -68,15 +85,17 @@ export default function CreateClassDialog({
       teacherId: undefined,
       pricePlanId: undefined,
       startDate: new Date().toISOString().split("T")[0],
+      durationInMonths: 1,
       defaultDuration: 60,
       schedule: {
         days: [],
-        time: "09:00",
+        times: [],
       },
       bufferTime: 10,
       currency: "USD",
       monthlyPrice: 0,
       teacherHourlyRate: 0,
+      selectedStudentIds: [],
     },
   });
 
@@ -86,6 +105,14 @@ export default function CreateClassDialog({
 
   const { data: pricePlans } = useQuery<SelectPricePlan[]>({
     queryKey: ["/api/price-plans"],
+  });
+
+  const { data: subjects } = useQuery<SelectSubject[]>({
+    queryKey: ["/api/subjects"],
+  });
+
+  const { data: students } = useQuery({
+    queryKey: ["/api/students"],
   });
 
   const createClassMutation = useMutation({
@@ -138,16 +165,47 @@ export default function CreateClassDialog({
     } else if (step === 2) {
       isValid = Boolean(
         formData.startDate &&
+        formData.durationInMonths &&
         formData.defaultDuration &&
         formData.defaultDuration >= 30
+      );
+    } else if (step === 3) {
+      isValid = Boolean(
+        formData.schedule.days.length > 0 &&
+        formData.schedule.times.length > 0
       );
     }
 
     return isValid;
   };
 
+  const handleDayChange = (day: string, checked: boolean) => {
+    const newDays = checked
+      ? [...selectedDays, day]
+      : selectedDays.filter(d => d !== day);
+
+    setSelectedDays(newDays);
+    form.setValue("schedule.days", newDays);
+
+    // Update times array
+    const currentTimes = form.getValues("schedule.times");
+    if (checked) {
+      // Add a default time for the new day
+      form.setValue("schedule.times", [
+        ...currentTimes,
+        { day, time: "09:00" }
+      ]);
+    } else {
+      // Remove times for the unchecked day
+      form.setValue(
+        "schedule.times",
+        currentTimes.filter(t => t.day !== day)
+      );
+    }
+  };
+
   const onSubmit = async (data: CreateClassFormData) => {
-    if (step < 3) {
+    if (step < 4) {
       if (validateCurrentStep()) {
         setStep(step + 1);
       }
@@ -162,7 +220,12 @@ export default function CreateClassDialog({
         <DialogHeader>
           <DialogTitle>Create New Class</DialogTitle>
           <DialogDescription>
-            Step {step} of 3: {step === 1 ? "Basic Information" : step === 2 ? "Schedule & Duration" : "Pricing & Settings"}
+            Step {step} of 4: {
+              step === 1 ? "Basic Information" : 
+              step === 2 ? "Schedule & Duration" : 
+              step === 3 ? "Weekly Schedule" :
+              "Pricing & Settings"
+            }
           </DialogDescription>
         </DialogHeader>
 
@@ -224,7 +287,7 @@ export default function CreateClassDialog({
                         <SelectContent>
                           {pricePlans?.map((plan) => (
                             <SelectItem key={plan.id} value={plan.id}>
-                              {plan.name}
+                              {plan.name} - {plan.subject?.name}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -254,10 +317,28 @@ export default function CreateClassDialog({
 
                 <FormField
                   control={form.control}
+                  name="durationInMonths"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Duration (months)</FormLabel>
+                      <FormControl>
+                        <Input 
+                          type="number"
+                          min="1"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
                   name="defaultDuration"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Duration (minutes)</FormLabel>
+                      <FormLabel>Session Duration (minutes)</FormLabel>
                       <FormControl>
                         <Input 
                           type="number" 
@@ -289,6 +370,62 @@ export default function CreateClassDialog({
             )}
 
             {step === 3 && (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <FormLabel>Select Days</FormLabel>
+                  <div className="grid grid-cols-2 gap-2">
+                    {WEEKDAYS.map((day) => (
+                      <div key={day.value} className="flex items-center space-x-2">
+                        <Checkbox
+                          checked={selectedDays.includes(day.value)}
+                          onCheckedChange={(checked) => 
+                            handleDayChange(day.value, checked as boolean)
+                          }
+                        />
+                        <label>{day.label}</label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {selectedDays.length > 0 && (
+                  <div className="space-y-2">
+                    <FormLabel>Class Times</FormLabel>
+                    <div className="space-y-2">
+                      {selectedDays.map((day) => (
+                        <FormField
+                          key={day}
+                          control={form.control}
+                          name={`schedule.times`}
+                          render={({ field }) => (
+                            <FormItem className="flex items-center gap-2">
+                              <span className="w-24">{
+                                WEEKDAYS.find(d => d.value === day)?.label
+                              }</span>
+                              <FormControl>
+                                <Input
+                                  type="time"
+                                  value={
+                                    field.value.find(t => t.day === day)?.time || "09:00"
+                                  }
+                                  onChange={(e) => {
+                                    const newTimes = field.value.filter(t => t.day !== day);
+                                    newTimes.push({ day, time: e.target.value });
+                                    field.onChange(newTimes);
+                                  }}
+                                />
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {step === 4 && (
               <>
                 <FormField
                   control={form.control}
@@ -346,6 +483,32 @@ export default function CreateClassDialog({
                     </FormItem>
                   )}
                 />
+                {students && (
+                  <FormField
+                    control={form.control}
+                    name="selectedStudentIds"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Students</FormLabel>
+                        <Select multiple onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select students" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {students.map((student) => (
+                              <SelectItem key={student.id} value={student.id}>
+                                {student.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
               </>
             )}
 
@@ -360,7 +523,7 @@ export default function CreateClassDialog({
                 </Button>
               )}
               <Button type="submit">
-                {step === 3 ? "Create Class" : "Next"}
+                {step === 4 ? "Create Class" : "Next"}
               </Button>
             </div>
           </form>
