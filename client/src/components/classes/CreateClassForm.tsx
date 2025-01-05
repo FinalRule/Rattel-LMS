@@ -44,31 +44,19 @@ export default function CreateClassForm({ onClose }: { onClose: () => void }) {
       teacherId: "",
       pricePlanId: "",
     },
-    mode: "onSubmit",
+    mode: "onChange",
   });
 
   // Fetch teachers with error handling
   const { data: teachers = [], isLoading: isTeachersLoading, error: teachersError } = useQuery({
     queryKey: ['/api/teachers'],
-    onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    }
+    select: (data) => data || [],
   });
 
   // Fetch price plans with error handling
   const { data: pricePlans = [], isLoading: isPricePlansLoading, error: pricePlansError } = useQuery({
     queryKey: ['/api/price-plans'],
-    onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    }
+    select: (data) => data || [],
   });
 
   // Create class mutation
@@ -109,10 +97,12 @@ export default function CreateClassForm({ onClose }: { onClose: () => void }) {
   });
 
   const onSubmit = async (data: StepOneData) => {
-    try {
-      await createClassMutation.mutateAsync(data);
-    } catch (error) {
-      console.error('Error creating class:', error);
+    if (currentStep === 1) {
+      try {
+        await createClassMutation.mutateAsync(data);
+      } catch (error) {
+        console.error('Error creating class:', error);
+      }
     }
   };
 
@@ -151,11 +141,16 @@ export default function CreateClassForm({ onClose }: { onClose: () => void }) {
             name="name"
             render={({ field }) => (
               <FormItem>
-                <FormLabel htmlFor="name">Class Name</FormLabel>
+                <FormLabel htmlFor="class-name">Class Name</FormLabel>
                 <FormControl>
-                  <Input id="name" {...field} placeholder="Enter class name" />
+                  <Input 
+                    id="class-name"
+                    placeholder="Enter class name"
+                    aria-describedby="class-name-description"
+                    {...field}
+                  />
                 </FormControl>
-                <FormMessage />
+                <FormMessage id="class-name-description" />
               </FormItem>
             )}
           />
@@ -165,22 +160,28 @@ export default function CreateClassForm({ onClose }: { onClose: () => void }) {
             name="teacherId"
             render={({ field }) => (
               <FormItem>
-                <FormLabel htmlFor="teacherId">Teacher</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value || ""}>
+                <FormLabel htmlFor="teacher-select">Teacher</FormLabel>
+                <Select 
+                  onValueChange={field.onChange} 
+                  defaultValue={field.value}
+                >
                   <FormControl>
-                    <SelectTrigger id="teacherId">
+                    <SelectTrigger
+                      id="teacher-select"
+                      aria-describedby="teacher-select-description"
+                    >
                       <SelectValue placeholder="Select a teacher" />
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    {teachers?.map((teacher: any) => (
+                    {teachers.map((teacher) => (
                       <SelectItem key={teacher.userId} value={teacher.userId}>
                         {teacher.user.fullName}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                <FormMessage />
+                <FormMessage id="teacher-select-description" />
               </FormItem>
             )}
           />
@@ -190,22 +191,28 @@ export default function CreateClassForm({ onClose }: { onClose: () => void }) {
             name="pricePlanId"
             render={({ field }) => (
               <FormItem>
-                <FormLabel htmlFor="pricePlanId">Price Plan</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value || ""}>
+                <FormLabel htmlFor="price-plan-select">Price Plan</FormLabel>
+                <Select 
+                  onValueChange={field.onChange}
+                  defaultValue={field.value}
+                >
                   <FormControl>
-                    <SelectTrigger id="pricePlanId">
+                    <SelectTrigger
+                      id="price-plan-select"
+                      aria-describedby="price-plan-select-description"
+                    >
                       <SelectValue placeholder="Select a price plan" />
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    {pricePlans?.map((plan: any) => (
+                    {pricePlans.map((plan) => (
                       <SelectItem key={plan.id} value={plan.id}>
                         {plan.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                <FormMessage />
+                <FormMessage id="price-plan-select-description" />
               </FormItem>
             )}
           />
@@ -214,7 +221,10 @@ export default function CreateClassForm({ onClose }: { onClose: () => void }) {
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit" disabled={createClassMutation.isPending}>
+            <Button 
+              type="submit" 
+              disabled={!form.formState.isValid || createClassMutation.isPending}
+            >
               {createClassMutation.isPending && (
                 <Loader2 className="h-4 w-4 animate-spin mr-2" />
               )}
