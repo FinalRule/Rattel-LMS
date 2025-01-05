@@ -45,14 +45,13 @@ export function useUser() {
         credentials: 'include',
       });
 
-      const data = await response.json();
-
       if (!response.ok) {
+        const data = await response.json();
         setAuthError(data.error || 'Login failed');
         throw new Error(data.error || 'Login failed');
       }
 
-      return data;
+      return response.json();
     },
     onSuccess: (data) => {
       queryClient.setQueryData(['/api/user'], data.user);
@@ -104,14 +103,13 @@ export function useUser() {
         credentials: 'include',
       });
 
-      const data = await response.json();
-
       if (!response.ok) {
+        const data = await response.json();
         setAuthError(data.error || 'Registration failed');
         throw new Error(data.error || 'Registration failed');
       }
 
-      return data;
+      return response.json();
     },
     onSuccess: (data) => {
       queryClient.setQueryData(['/api/user'], data.user);
