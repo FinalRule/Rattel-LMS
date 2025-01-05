@@ -12,6 +12,7 @@ import { Edit2, Trash2 } from "lucide-react";
 import { Loader2 } from "lucide-react";
 import EditSubjectDialog from "./EditSubjectDialog";
 import { Subject } from "@db/schema";
+import { Badge } from "@/components/ui/badge";
 
 export default function SubjectList() {
   const [editingSubject, setEditingSubject] = useState<Subject | null>(null);
@@ -34,9 +35,18 @@ export default function SubjectList() {
         <Card key={subject.id}>
           <CardHeader>
             <div className="flex justify-between items-start">
-              <div>
-                <CardTitle>{subject.name}</CardTitle>
-                <CardDescription>{subject.category}</CardDescription>
+              <div className="flex items-center gap-3">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    {subject.name}
+                    {subject.isActive ? (
+                      <Badge variant="default" className="ml-2">Active</Badge>
+                    ) : (
+                      <Badge variant="secondary" className="ml-2">Inactive</Badge>
+                    )}
+                  </CardTitle>
+                  <CardDescription>{subject.category}</CardDescription>
+                </div>
               </div>
               <div className="flex gap-2">
                 <Button
@@ -70,6 +80,16 @@ export default function SubjectList() {
                 <span className="font-medium">Available Durations:</span>{" "}
                 {subject.availableDurations?.join(", ")} minutes
               </div>
+              <div>
+                <span className="font-medium">Default Buffer Time:</span>{" "}
+                {subject.defaultBufferTime} minutes
+              </div>
+              {subject.details && (
+                <div>
+                  <span className="font-medium">Details:</span>{" "}
+                  <p className="mt-1 text-sm text-muted-foreground">{subject.details}</p>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
