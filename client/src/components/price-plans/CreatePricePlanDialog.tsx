@@ -34,13 +34,13 @@ import type { SelectSubject } from "@db/schema";
 const createPricePlanSchema = z.object({
   name: z.string().min(3, "Plan name must be at least 3 characters"),
   subjectId: z.string().uuid("Please select a subject"),
-  durationPerSession: z.number().min(30, "Duration must be at least 30 minutes"),
-  sessionsPerMonth: z.number().min(1, "Must have at least 1 session per month").max(30, "Maximum 30 sessions per month"),
-  monthlyFee: z.number().min(0, "Price must be non-negative"),
+  durationPerSession: z.coerce.number().min(30, "Duration must be at least 30 minutes"),
+  sessionsPerMonth: z.coerce.number().min(1, "Must have at least 1 session per month").max(30, "Maximum 30 sessions per month"),
+  monthlyFee: z.coerce.number().min(0, "Price must be non-negative"),
   currency: z.string().min(1, "Currency is required"),
-  promotionalPrice: z.number().optional(),
+  promotionalPrice: z.coerce.number().optional(),
   promotionValidUntil: z.string().optional(),
-  minimumCommitment: z.number().optional(),
+  minimumCommitment: z.coerce.number().optional(),
   isTrialEligible: z.boolean().default(false),
   isActive: z.boolean().default(true),
 });
@@ -110,11 +110,41 @@ export default function CreatePricePlanDialog({
     },
   });
 
-  const onSubmit = (data: CreatePricePlanFormData) => {
+  const validateCurrentStep = async () => {
+    const formData = form.getValues();
+    let isValid = false;
+
+    switch (step) {
+      case 1:
+        isValid = await form.trigger(['name', 'subjectId']);
+        break;
+      case 2:
+        isValid = await form.trigger(['durationPerSession', 'sessionsPerMonth']);
+        break;
+      case 3:
+        isValid = await form.trigger([
+          'monthlyFee',
+          'currency',
+          'promotionalPrice',
+          'promotionValidUntil',
+          'minimumCommitment',
+          'isTrialEligible'
+        ]);
+        break;
+    }
+
+    return isValid;
+  };
+
+  const onSubmit = async (data: CreatePricePlanFormData) => {
+    const isValid = await validateCurrentStep();
+    if (!isValid) return;
+
     if (step < 3) {
       setStep(step + 1);
       return;
     }
+
     createPricePlanMutation.mutate(data);
   };
 
@@ -189,7 +219,6 @@ export default function CreatePricePlanDialog({
                         <Input 
                           type="number" 
                           {...field}
-                          onChange={e => field.onChange(parseInt(e.target.value))}
                         />
                       </FormControl>
                       <FormMessage />
@@ -207,7 +236,6 @@ export default function CreatePricePlanDialog({
                         <Input 
                           type="number" 
                           {...field}
-                          onChange={e => field.onChange(parseInt(e.target.value))}
                         />
                       </FormControl>
                       <FormMessage />
@@ -229,7 +257,6 @@ export default function CreatePricePlanDialog({
                         <Input 
                           type="number" 
                           {...field}
-                          onChange={e => field.onChange(parseFloat(e.target.value))}
                         />
                       </FormControl>
                       <FormMessage />
@@ -270,7 +297,6 @@ export default function CreatePricePlanDialog({
                         <Input 
                           type="number" 
                           {...field}
-                          onChange={e => field.onChange(parseFloat(e.target.value))}
                         />
                       </FormControl>
                       <FormMessage />
@@ -302,7 +328,6 @@ export default function CreatePricePlanDialog({
                         <Input 
                           type="number" 
                           {...field}
-                          onChange={e => field.onChange(parseInt(e.target.value))}
                         />
                       </FormControl>
                       <FormMessage />
