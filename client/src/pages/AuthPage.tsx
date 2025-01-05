@@ -11,46 +11,49 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 
 const authSchema = z.object({
-  username: z.string().email("Invalid email address").min(1, "Email is required"),
+  email: z.string().email("Invalid email address").min(1, "Email is required"),
   password: z.string().min(6, "Password must be at least 6 characters"),
   fullName: z.string().min(2, "Full name must be at least 2 characters").optional().or(z.literal("")),
   role: z.enum(["admin", "teacher", "student"]).optional(),
 });
+
+type AuthFormData = z.infer<typeof authSchema>;
 
 export default function AuthPage() {
   const [isLogin, setIsLogin] = useState(true);
   const { login, register } = useUser();
   const { toast } = useToast();
 
-  const form = useForm({
+  const form = useForm<AuthFormData>({
     resolver: zodResolver(authSchema),
     defaultValues: {
-      username: "",
+      email: "",
       password: "",
       fullName: "",
       role: "student",
     },
   });
 
-  const onSubmit = async (data: z.infer<typeof authSchema>) => {
+  const onSubmit = async (data: AuthFormData) => {
     try {
       if (isLogin) {
         const result = await login({
-          username: data.username,
+          email: data.email,
           password: data.password
         });
 
         if (!result.ok) {
           toast({
-            title: "Error",
-            description: result.message,
+            title: "Login Failed",
+            description: result.message || "Invalid email or password",
             variant: "destructive",
           });
+          return;
         }
       } else {
         if (!data.fullName) {
           toast({
-            title: "Error",
+            title: "Registration Failed",
             description: "Full name is required for registration",
             variant: "destructive",
           });
@@ -58,7 +61,7 @@ export default function AuthPage() {
         }
 
         const result = await register({
-          username: data.username,
+          email: data.email,
           password: data.password,
           fullName: data.fullName,
           role: data.role || "student",
@@ -66,16 +69,17 @@ export default function AuthPage() {
 
         if (!result.ok) {
           toast({
-            title: "Error",
-            description: result.message,
+            title: "Registration Failed",
+            description: result.message || "Registration failed. Please try again.",
             variant: "destructive",
           });
+          return;
         }
       }
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message,
+        description: error.message || "An unexpected error occurred",
         variant: "destructive",
       });
     }
@@ -94,7 +98,7 @@ export default function AuthPage() {
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <FormField
                 control={form.control}
-                name="username"
+                name="email"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Email</FormLabel>

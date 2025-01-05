@@ -1,9 +1,26 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { NewUser, User } from "@db/schema";
 import { useToast } from "@/hooks/use-toast";
+
+type LoginData = {
+  email: string;
+  password: string;
+};
+
+type RegisterData = LoginData & {
+  fullName: string;
+  role: "admin" | "teacher" | "student";
+};
+
+type User = {
+  id: string;
+  email: string;
+  role: string;
+  fullName: string;
+};
 
 type RequestResult = {
   ok: true;
+  user?: User;
 } | {
   ok: false;
   message: string;
@@ -12,7 +29,7 @@ type RequestResult = {
 async function handleRequest(
   url: string,
   method: string,
-  body?: NewUser
+  body?: LoginData | RegisterData
 ): Promise<RequestResult> {
   try {
     const response = await fetch(url, {
@@ -23,52 +40,49 @@ async function handleRequest(
     });
 
     if (!response.ok) {
-      if (response.status >= 500) {
-        return { ok: false, message: response.statusText };
-      }
-
-      const message = await response.text();
-      return { ok: false, message };
+      const text = await response.text();
+      return { ok: false, message: text };
     }
 
-    return { ok: true };
+    const data = await response.json();
+    return { ok: true, user: data.user };
   } catch (e: any) {
     return { ok: false, message: e.toString() };
   }
 }
 
 async function fetchUser(): Promise<User | null> {
-  const response = await fetch('/api/user', {
-    credentials: 'include'
-  });
+  try {
+    const response = await fetch('/api/user', {
+      credentials: 'include'
+    });
 
-  if (!response.ok) {
-    if (response.status === 401) {
-      return null;
+    if (!response.ok) {
+      if (response.status === 401) {
+        return null;
+      }
+      throw new Error(await response.text());
     }
 
-    if (response.status >= 500) {
-      throw new Error(`${response.status}: ${response.statusText}`);
-    }
-
-    throw new Error(`${response.status}: ${await response.text()}`);
+    return response.json();
+  } catch (error) {
+    console.error('Error fetching user:', error);
+    return null;
   }
-
-  return response.json();
 }
 
 export function useUser() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const { data: user, error, isLoading } = useQuery<User | null, Error>({
+  const { data: user, error, isLoading } = useQuery<User | null>({
     queryKey: ['user'],
     queryFn: fetchUser,
     staleTime: Infinity,
     retry: false
   });
 
-  const loginMutation = useMutation<RequestResult, Error, NewUser>({
+  const loginMutation = useMutation<RequestResult, Error, LoginData>({
     mutationFn: (userData) => handleRequest('/api/login', 'POST', userData),
     onSuccess: (result) => {
       if (result.ok) {
@@ -76,12 +90,6 @@ export function useUser() {
         toast({
           title: "Success",
           description: "Logged in successfully",
-        });
-      } else {
-        toast({
-          title: "Error",
-          description: result.message,
-          variant: "destructive",
         });
       }
     },
@@ -91,22 +99,16 @@ export function useUser() {
     mutationFn: () => handleRequest('/api/logout', 'POST'),
     onSuccess: (result) => {
       if (result.ok) {
-        queryClient.invalidateQueries({ queryKey: ['user'] });
+        queryClient.setQueryData(['user'], null);
         toast({
           title: "Success",
           description: "Logged out successfully",
-        });
-      } else {
-        toast({
-          title: "Error",
-          description: result.message,
-          variant: "destructive",
         });
       }
     },
   });
 
-  const registerMutation = useMutation<RequestResult, Error, NewUser>({
+  const registerMutation = useMutation<RequestResult, Error, RegisterData>({
     mutationFn: (userData) => handleRequest('/api/register', 'POST', userData),
     onSuccess: (result) => {
       if (result.ok) {
@@ -114,12 +116,6 @@ export function useUser() {
         toast({
           title: "Success", 
           description: "Registration successful",
-        });
-      } else {
-        toast({
-          title: "Error",
-          description: result.message,
-          variant: "destructive",
         });
       }
     },
