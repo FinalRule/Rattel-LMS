@@ -110,19 +110,20 @@ export default function CreateClassDialog({ open, onOpenChange }: CreateClassDia
     },
   });
 
-  // Get current user and check authentication
+  // Auth token helper
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem("authToken");
+    return token ? { Authorization: `Bearer ${token}` } : undefined;
+  };
+
+  // Data fetching queries
   const { data: user, isLoading: isUserLoading } = useQuery({
     queryKey: ["/api/user"],
     queryFn: async () => {
-      const token = localStorage.getItem("authToken");
-      if (!token) return null;
+      const headers = getAuthHeaders();
+      if (!headers) return null;
 
-      const response = await fetch("/api/user", {
-        headers: {
-          "Authorization": `Bearer ${token}`,
-        },
-      });
-
+      const response = await fetch("/api/user", { headers });
       if (!response.ok) {
         if (response.status === 401) {
           localStorage.removeItem("authToken");
@@ -135,108 +136,56 @@ export default function CreateClassDialog({ open, onOpenChange }: CreateClassDia
     },
   });
 
-  // Fetch teachers
-  const { data: teachers = [], isLoading: isTeachersLoading, error: teachersError } = useQuery<SelectTeacher[]>({
+  const { data: teachers = [], isLoading: isTeachersLoading } = useQuery<SelectTeacher[]>({
     queryKey: ["/api/teachers"],
     queryFn: async () => {
-      const token = localStorage.getItem("authToken");
-      if (!token) throw new Error("Authentication required");
+      const headers = getAuthHeaders();
+      if (!headers) throw new Error("Authentication required");
 
-      const response = await fetch("/api/teachers", {
-        headers: {
-          "Authorization": `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          localStorage.removeItem("authToken");
-          throw new Error("Please log in again");
-        }
-        throw new Error("Failed to fetch teachers");
-      }
-
+      const response = await fetch("/api/teachers", { headers });
+      if (!response.ok) throw new Error("Failed to fetch teachers");
       return response.json();
     },
-    retry: 1,
+    enabled: !!user,
   });
 
-  // Fetch students
-  const { data: students = [], isLoading: isStudentsLoading, error: studentsError } = useQuery<SelectStudent[]>({
+  const { data: students = [], isLoading: isStudentsLoading } = useQuery<SelectStudent[]>({
     queryKey: ["/api/students"],
     queryFn: async () => {
-      const token = localStorage.getItem("authToken");
-      if (!token) throw new Error("Authentication required");
+      const headers = getAuthHeaders();
+      if (!headers) throw new Error("Authentication required");
 
-      const response = await fetch("/api/students", {
-        headers: {
-          "Authorization": `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          localStorage.removeItem("authToken");
-          throw new Error("Please log in again");
-        }
-        throw new Error("Failed to fetch students");
-      }
-
+      const response = await fetch("/api/students", { headers });
+      if (!response.ok) throw new Error("Failed to fetch students");
       return response.json();
     },
-    retry: 1,
+    enabled: !!user,
   });
 
-  // Fetch price plans
-  const { data: pricePlans = [], isLoading: isPricePlansLoading, error: pricePlansError } = useQuery<SelectPricePlan[]>({
+  const { data: pricePlans = [], isLoading: isPricePlansLoading } = useQuery<SelectPricePlan[]>({
     queryKey: ["/api/price-plans"],
     queryFn: async () => {
-      const token = localStorage.getItem("authToken");
-      if (!token) throw new Error("Authentication required");
+      const headers = getAuthHeaders();
+      if (!headers) throw new Error("Authentication required");
 
-      const response = await fetch("/api/price-plans", {
-        headers: {
-          "Authorization": `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          localStorage.removeItem("authToken");
-          throw new Error("Please log in again");
-        }
-        throw new Error("Failed to fetch price plans");
-      }
-
+      const response = await fetch("/api/price-plans", { headers });
+      if (!response.ok) throw new Error("Failed to fetch price plans");
       return response.json();
     },
-    retry: 1,
+    enabled: !!user,
   });
-
-  // Show error messages if any of the queries fail
-  if (teachersError || studentsError || pricePlansError) {
-    return (
-      <div className="p-6 text-center">
-        <p className="text-red-500">
-          {teachersError?.message || studentsError?.message || pricePlansError?.message}
-        </p>
-      </div>
-    );
-  }
 
   // Create class mutation
   const createClassMutation = useMutation({
     mutationFn: async (data: CreateClassFormData) => {
-      const token = localStorage.getItem("authToken");
-      if (!token) {
-        throw new Error("Authentication required");
-      }
+      const headers = getAuthHeaders();
+      if (!headers) throw new Error("Authentication required");
 
       const response = await fetch("/api/classes", {
         method: "POST",
         headers: {
+          ...headers,
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`,
         },
         body: JSON.stringify(data),
       });
@@ -270,21 +219,29 @@ export default function CreateClassDialog({ open, onOpenChange }: CreateClassDia
     createClassMutation.mutate(data);
   };
 
-  // Show loading state while checking authentication
+  // Loading states
   if (isUserLoading || isTeachersLoading || isPricePlansLoading || isStudentsLoading) {
     return (
-      <div className="flex items-center justify-center p-6">
-        <Loader2 className="h-6 w-6 animate-spin" />
-      </div>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent>
+          <div className="flex items-center justify-center p-6">
+            <Loader2 className="h-6 w-6 animate-spin" />
+          </div>
+        </DialogContent>
+      </Dialog>
     );
   }
 
-  // Show error if not authenticated
+  // Auth check
   if (!user) {
     return (
-      <div className="p-6 text-center">
-        <p className="text-red-500">Please log in to continue</p>
-      </div>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent>
+          <div className="p-6 text-center">
+            <p className="text-red-500">Please log in to continue</p>
+          </div>
+        </DialogContent>
+      </Dialog>
     );
   }
 
