@@ -25,10 +25,36 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import type { SelectTeacher, SelectPricePlan } from "@db/schema";
-import { Loader2 } from "lucide-react";
+import type { SelectTeacher, SelectStudent, SelectPricePlan } from "@db/schema";
+import { Loader2, Check, ChevronsUpDown } from "lucide-react";
+import { cn } from "@/lib/utils";
+
+const WEEKDAYS = [
+  { label: "Monday", value: "MON" },
+  { label: "Tuesday", value: "TUE" },
+  { label: "Wednesday", value: "WED" },
+  { label: "Thursday", value: "THU" },
+  { label: "Friday", value: "FRI" },
+  { label: "Saturday", value: "SAT" },
+  { label: "Sunday", value: "SUN" },
+] as const;
 
 const createClassSchema = z.object({
   name: z.string().min(1, "Class name is required"),
@@ -36,10 +62,18 @@ const createClassSchema = z.object({
   pricePlanId: z.string().uuid("Please select a price plan"),
   startDate: z.string().min(1, "Start date is required"),
   defaultDuration: z.coerce.number().min(30, "Duration must be at least 30 minutes"),
+  schedule: z.object({
+    days: z.array(z.string()).min(1, "Select at least one day"),
+    times: z.array(z.object({
+      day: z.string(),
+      time: z.string(),
+    })).min(1, "Add at least one time slot"),
+  }),
   monthlyPrice: z.coerce.number().min(0, "Price must be non-negative"),
   currency: z.string().min(1, "Currency is required"),
   teacherHourlyRate: z.coerce.number().min(0, "Teacher rate must be non-negative"),
   bufferTime: z.coerce.number().optional(),
+  selectedStudentIds: z.array(z.string().uuid()).min(1, "Select at least one student"),
 });
 
 type CreateClassFormData = z.infer<typeof createClassSchema>;
@@ -53,11 +87,7 @@ export default function CreateClassDialog({ open, onOpenChange }: CreateClassDia
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Get current user and check authentication
-  const { data: user, isLoading: isUserLoading } = useQuery({
-    queryKey: ["/api/user"],
-  });
-
+  // Form definition
   const form = useForm<CreateClassFormData>({
     resolver: zodResolver(createClassSchema),
     defaultValues: {
@@ -66,24 +96,42 @@ export default function CreateClassDialog({ open, onOpenChange }: CreateClassDia
       pricePlanId: "",
       startDate: new Date().toISOString().split("T")[0],
       defaultDuration: 60,
+      schedule: {
+        days: [],
+        times: [],
+      },
       monthlyPrice: 0,
       currency: "USD",
       teacherHourlyRate: 0,
       bufferTime: 10,
+      selectedStudentIds: [],
     },
   });
 
-  // Queries - only enabled when user is authenticated
-  const { data: teachers, isLoading: isTeachersLoading } = useQuery<SelectTeacher[]>({
+  // Get current user and check authentication
+  const { data: user, isLoading: isUserLoading } = useQuery({
+    queryKey: ["/api/user"],
+  });
+
+  // Fetch teachers
+  const { data: teachers = [], isLoading: isTeachersLoading } = useQuery<SelectTeacher[]>({
     queryKey: ["/api/teachers"],
     enabled: !!user,
   });
 
-  const { data: pricePlans, isLoading: isPricePlansLoading } = useQuery<SelectPricePlan[]>({
+  // Fetch students
+  const { data: students = [], isLoading: isStudentsLoading } = useQuery<SelectStudent[]>({
+    queryKey: ["/api/students"],
+    enabled: !!user,
+  });
+
+  // Fetch price plans
+  const { data: pricePlans = [], isLoading: isPricePlansLoading } = useQuery<SelectPricePlan[]>({
     queryKey: ["/api/price-plans"],
     enabled: !!user,
   });
 
+  // Create class mutation
   const createClassMutation = useMutation({
     mutationFn: async (data: CreateClassFormData) => {
       const response = await fetch("/api/classes", {
@@ -125,7 +173,7 @@ export default function CreateClassDialog({ open, onOpenChange }: CreateClassDia
   };
 
   // Show loading state while checking authentication
-  if (isUserLoading || isTeachersLoading || isPricePlansLoading) {
+  if (isUserLoading || isTeachersLoading || isPricePlansLoading || isStudentsLoading) {
     return (
       <div className="flex items-center justify-center p-6">
         <Loader2 className="h-6 w-6 animate-spin" />
@@ -142,9 +190,12 @@ export default function CreateClassDialog({ open, onOpenChange }: CreateClassDia
     );
   }
 
+  const selectedStudents = form.watch("selectedStudentIds");
+  const selectedDays = form.watch("schedule.days");
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px]">
+      <DialogContent className="sm:max-w-[700px]">
         <DialogHeader>
           <DialogTitle>Create New Class</DialogTitle>
           <DialogDescription>
@@ -153,182 +204,334 @@ export default function CreateClassDialog({ open, onOpenChange }: CreateClassDia
         </DialogHeader>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel htmlFor="class-name">Class Name</FormLabel>
-                  <FormControl>
-                    <Input {...field} id="class-name" />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <div className="grid grid-cols-2 gap-4">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            {/* Basic Information */}
+            <div className="space-y-4">
               <FormField
                 control={form.control}
-                name="teacherId"
+                name="name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel htmlFor="teacher-select">Teacher</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger id="teacher-select">
-                          <SelectValue placeholder="Select a teacher" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {teachers?.map((teacher) => (
-                          <SelectItem key={teacher.userId} value={teacher.userId}>
-                            {teacher.user?.fullName}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <FormLabel>Class Name</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
 
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="teacherId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Teacher</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a teacher" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {teachers?.map((teacher) => (
+                            <SelectItem key={teacher.userId} value={teacher.userId}>
+                              {teacher.user?.fullName}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="pricePlanId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Price Plan</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a price plan" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {pricePlans?.map((plan) => (
+                            <SelectItem key={plan.id} value={plan.id}>
+                              {plan.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              {/* Student Selection */}
               <FormField
                 control={form.control}
-                name="pricePlanId"
+                name="selectedStudentIds"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel htmlFor="price-plan-select">Price Plan</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger id="price-plan-select">
-                          <SelectValue placeholder="Select a price plan" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {pricePlans?.map((plan) => (
-                          <SelectItem key={plan.id} value={plan.id}>
-                            {plan.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <FormLabel>Students</FormLabel>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button
+                            variant="outline"
+                            role="combobox"
+                            className={cn(
+                              "w-full justify-between",
+                              !field.value.length && "text-muted-foreground"
+                            )}
+                          >
+                            {field.value.length > 0
+                              ? `${field.value.length} student(s) selected`
+                              : "Select students"}
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[400px] p-0">
+                        <Command>
+                          <CommandInput placeholder="Search students..." />
+                          <CommandEmpty>No students found.</CommandEmpty>
+                          <CommandGroup>
+                            <ScrollArea className="h-[200px]">
+                              {students.map((student) => (
+                                <CommandItem
+                                  value={student.userId}
+                                  key={student.userId}
+                                  onSelect={() => {
+                                    const current = field.value;
+                                    const newValue = current.includes(student.userId)
+                                      ? current.filter((id) => id !== student.userId)
+                                      : [...current, student.userId];
+                                    field.onChange(newValue);
+                                  }}
+                                >
+                                  <Check
+                                    className={cn(
+                                      "mr-2 h-4 w-4",
+                                      field.value.includes(student.userId)
+                                        ? "opacity-100"
+                                        : "opacity-0"
+                                    )}
+                                  />
+                                  {student.user?.fullName}
+                                </CommandItem>
+                              ))}
+                            </ScrollArea>
+                          </CommandGroup>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                    {selectedStudents.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {selectedStudents.map((id) => {
+                          const student = students.find(s => s.userId === id);
+                          return (
+                            <Badge key={id} variant="secondary">
+                              {student?.user?.fullName}
+                            </Badge>
+                          );
+                        })}
+                      </div>
+                    )}
                     <FormMessage />
                   </FormItem>
                 )}
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="startDate"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Start Date</FormLabel>
-                    <FormControl>
-                      <Input type="date" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="defaultDuration"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Session Duration (minutes)</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="monthlyPrice"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Monthly Price</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="currency"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Currency</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
+            {/* Schedule and Duration */}
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="startDate"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Start Date</FormLabel>
                       <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select currency" />
-                        </SelectTrigger>
+                        <Input type="date" {...field} />
                       </FormControl>
-                      <SelectContent>
-                        <SelectItem value="USD">USD</SelectItem>
-                        <SelectItem value="EUR">EUR</SelectItem>
-                        <SelectItem value="GBP">GBP</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="defaultDuration"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Session Duration (minutes)</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              {/* Weekly Schedule */}
+              <div className="space-y-4">
+                <FormLabel>Weekly Schedule</FormLabel>
+                <div className="grid grid-cols-2 gap-2">
+                  {WEEKDAYS.map((day) => (
+                    <div key={day.value} className="flex items-center space-x-2">
+                      <Checkbox
+                        checked={selectedDays.includes(day.value)}
+                        onCheckedChange={(checked) => {
+                          const current = form.getValues("schedule.days");
+                          const newDays = checked
+                            ? [...current, day.value]
+                            : current.filter(d => d !== day.value);
+                          form.setValue("schedule.days", newDays);
+
+                          // Update times array
+                          const currentTimes = form.getValues("schedule.times");
+                          if (checked) {
+                            form.setValue("schedule.times", [
+                              ...currentTimes,
+                              { day: day.value, time: "09:00" }
+                            ]);
+                          } else {
+                            form.setValue(
+                              "schedule.times",
+                              currentTimes.filter(t => t.day !== day.value)
+                            );
+                          }
+                        }}
+                      />
+                      <span>{day.label}</span>
+                    </div>
+                  ))}
+                </div>
+                {selectedDays.length > 0 && (
+                  <div className="space-y-2">
+                    {selectedDays.map((day) => (
+                      <FormField
+                        key={day}
+                        control={form.control}
+                        name="schedule.times"
+                        render={({ field }) => (
+                          <FormItem className="flex items-center gap-2">
+                            <span className="w-24">{
+                              WEEKDAYS.find(d => d.value === day)?.label
+                            }</span>
+                            <FormControl>
+                              <Input
+                                type="time"
+                                value={
+                                  field.value.find(t => t.day === day)?.time || "09:00"
+                                }
+                                onChange={(e) => {
+                                  const newTimes = field.value.filter(t => t.day !== day);
+                                  newTimes.push({ day, time: e.target.value });
+                                  field.onChange(newTimes);
+                                }}
+                              />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+                    ))}
+                  </div>
                 )}
-              />
+              </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="teacherHourlyRate"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Teacher Hourly Rate</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+            {/* Pricing and Settings */}
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="monthlyPrice"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Monthly Price</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-              <FormField
-                control={form.control}
-                name="bufferTime"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Buffer Time (minutes)</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                <FormField
+                  control={form.control}
+                  name="currency"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Currency</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select currency" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="USD">USD</SelectItem>
+                          <SelectItem value="EUR">EUR</SelectItem>
+                          <SelectItem value="GBP">GBP</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="teacherHourlyRate"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Teacher Hourly Rate</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="bufferTime"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Buffer Time (minutes)</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
             </div>
 
             <div className="flex justify-end gap-4 pt-4">
