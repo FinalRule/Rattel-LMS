@@ -1,6 +1,7 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Loader2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -20,8 +21,9 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { insertTeacherSchema, insertUserSchema } from "@db/schema";
+import { insertTeacherSchema } from "@db/schema";
 import { z } from "zod";
+import { useToast } from "@/hooks/use-toast";
 
 const createTeacherSchema = z.object({
   email: z.string().email(),
@@ -49,6 +51,7 @@ export default function CreateTeacherDialog({
   open,
   onOpenChange,
 }: CreateTeacherDialogProps) {
+  const { toast } = useToast();
   const queryClient = useQueryClient();
   const form = useForm<CreateTeacherForm>({
     resolver: zodResolver(createTeacherSchema),
@@ -58,26 +61,60 @@ export default function CreateTeacherDialog({
     },
   });
 
+  // Auth token helper
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem("authToken");
+    if (!token) {
+      toast({
+        title: "Authentication Error",
+        description: "Please log in to continue",
+        variant: "destructive",
+      });
+      return null;
+    }
+    return {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    };
+  };
+
   const createTeacher = useMutation({
     mutationFn: async (data: CreateTeacherForm) => {
+      const headers = getAuthHeaders();
+      if (!headers) throw new Error("Authentication required");
+
       const response = await fetch("/api/teachers", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers,
         body: JSON.stringify(data),
       });
 
       if (!response.ok) {
-        throw new Error(await response.text());
+        if (response.status === 401) {
+          localStorage.removeItem("authToken");
+          throw new Error("Please log in again");
+        }
+        const errorText = await response.text();
+        throw new Error(errorText || "Failed to create teacher");
       }
 
       return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/teachers"] });
+      toast({
+        title: "Success",
+        description: "Teacher created successfully",
+      });
       form.reset();
       onOpenChange(false);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
     },
   });
 
@@ -275,10 +312,22 @@ export default function CreateTeacherDialog({
             </div>
 
             <div className="flex justify-end gap-3 sticky bottom-0 bg-background pt-4 border-t">
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+              >
                 Cancel
               </Button>
-              <Button type="submit">Create Teacher</Button>
+              <Button
+                type="submit"
+                disabled={createTeacher.isPending}
+              >
+                {createTeacher.isPending && (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                )}
+                Create Teacher
+              </Button>
             </div>
           </form>
         </Form>
