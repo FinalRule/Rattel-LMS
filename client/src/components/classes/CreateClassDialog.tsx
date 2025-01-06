@@ -96,7 +96,7 @@ export default function CreateClassDialog({ open, onOpenChange }: CreateClassDia
       teacherId: "",
       pricePlanId: "",
       startDate: new Date().toISOString().split("T")[0],
-      endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0], // 1 week from now
+      endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
       defaultDuration: 60,
       schedule: {
         days: [],
@@ -113,41 +113,96 @@ export default function CreateClassDialog({ open, onOpenChange }: CreateClassDia
   // Get current user and check authentication
   const { data: user, isLoading: isUserLoading } = useQuery({
     queryKey: ["/api/user"],
+    queryFn: async () => {
+      const token = localStorage.getItem("authToken");
+      if (!token) return null;
+
+      const response = await fetch("/api/user", {
+        headers: {
+          "Authorization": `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          localStorage.removeItem("authToken");
+          return null;
+        }
+        throw new Error("Failed to fetch user");
+      }
+
+      return response.json();
+    },
   });
 
   // Fetch teachers
   const { data: teachers = [], isLoading: isTeachersLoading } = useQuery<SelectTeacher[]>({
     queryKey: ["/api/teachers"],
+    queryFn: async () => {
+      const token = localStorage.getItem("authToken");
+      const response = await fetch("/api/teachers", {
+        headers: {
+          "Authorization": `Bearer ${token}`,
+        },
+      });
+      if (!response.ok) throw new Error("Failed to fetch teachers");
+      return response.json();
+    },
     enabled: !!user,
   });
 
   // Fetch students
   const { data: students = [], isLoading: isStudentsLoading } = useQuery<SelectStudent[]>({
     queryKey: ["/api/students"],
+    queryFn: async () => {
+      const token = localStorage.getItem("authToken");
+      const response = await fetch("/api/students", {
+        headers: {
+          "Authorization": `Bearer ${token}`,
+        },
+      });
+      if (!response.ok) throw new Error("Failed to fetch students");
+      return response.json();
+    },
     enabled: !!user,
   });
 
   // Fetch price plans
   const { data: pricePlans = [], isLoading: isPricePlansLoading } = useQuery<SelectPricePlan[]>({
     queryKey: ["/api/price-plans"],
+    queryFn: async () => {
+      const token = localStorage.getItem("authToken");
+      const response = await fetch("/api/price-plans", {
+        headers: {
+          "Authorization": `Bearer ${token}`,
+        },
+      });
+      if (!response.ok) throw new Error("Failed to fetch price plans");
+      return response.json();
+    },
     enabled: !!user,
   });
 
   // Create class mutation
   const createClassMutation = useMutation({
     mutationFn: async (data: CreateClassFormData) => {
+      const token = localStorage.getItem("authToken");
+      if (!token) {
+        throw new Error("Authentication required");
+      }
+
       const response = await fetch("/api/classes", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
         },
-        credentials: "include", // Important for sending cookies
         body: JSON.stringify(data),
       });
 
       if (!response.ok) {
-        const text = await response.text();
-        throw new Error(text);
+        const errorText = await response.text();
+        throw new Error(errorText);
       }
 
       return response.json();
@@ -362,8 +417,8 @@ export default function CreateClassDialog({ open, onOpenChange }: CreateClassDia
                     <FormItem>
                       <FormLabel>Start Date</FormLabel>
                       <FormControl>
-                        <Input 
-                          type="date" 
+                        <Input
+                          type="date"
                           {...field}
                           onChange={(e) => {
                             field.onChange(e.target.value);
@@ -389,8 +444,8 @@ export default function CreateClassDialog({ open, onOpenChange }: CreateClassDia
                     <FormItem>
                       <FormLabel>End Date</FormLabel>
                       <FormControl>
-                        <Input 
-                          type="date" 
+                        <Input
+                          type="date"
                           {...field}
                           min={new Date(form.getValues("startDate")).toISOString().split("T")[0]}
                         />
@@ -554,7 +609,7 @@ export default function CreateClassDialog({ open, onOpenChange }: CreateClassDia
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 Cancel
               </Button>
-              <Button 
+              <Button
                 type="submit"
                 disabled={createClassMutation.isPending}
               >
