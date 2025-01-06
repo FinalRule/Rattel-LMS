@@ -7,10 +7,10 @@ import { db } from "@db";
 import { eq } from "drizzle-orm";
 
 const scryptAsync = promisify(scrypt);
-const JWT_SECRET = process.env.REPL_ID || "your-jwt-secret-key";
+export const JWT_SECRET = process.env.REPL_ID || "your-jwt-secret-key";
 const TOKEN_EXPIRATION = "24h";
 
-const crypto = {
+export const crypto = {
   hash: async (password: string) => {
     const salt = randomBytes(16).toString("hex");
     const buf = (await scryptAsync(password, salt, 64)) as Buffer;
@@ -42,7 +42,7 @@ declare global {
   }
 }
 
-const generateToken = (user: {
+export const generateToken = (user: {
   id: string;
   email: string;
   role: string;
@@ -51,7 +51,7 @@ const generateToken = (user: {
   return jwt.sign(user, JWT_SECRET, { expiresIn: TOKEN_EXPIRATION });
 };
 
-const verifyToken = (token: string) => {
+export const verifyToken = (token: string) => {
   try {
     return jwt.verify(token, JWT_SECRET) as {
       id: string;
@@ -217,4 +217,4 @@ export function setupAuth(app: Express) {
   });
 }
 
-export { crypto };
+export { jwt };

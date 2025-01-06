@@ -136,52 +136,93 @@ export default function CreateClassDialog({ open, onOpenChange }: CreateClassDia
   });
 
   // Fetch teachers
-  const { data: teachers = [], isLoading: isTeachersLoading } = useQuery<SelectTeacher[]>({
+  const { data: teachers = [], isLoading: isTeachersLoading, error: teachersError } = useQuery<SelectTeacher[]>({
     queryKey: ["/api/teachers"],
     queryFn: async () => {
       const token = localStorage.getItem("authToken");
+      if (!token) throw new Error("Authentication required");
+
       const response = await fetch("/api/teachers", {
         headers: {
           "Authorization": `Bearer ${token}`,
         },
       });
-      if (!response.ok) throw new Error("Failed to fetch teachers");
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          localStorage.removeItem("authToken");
+          throw new Error("Please log in again");
+        }
+        throw new Error("Failed to fetch teachers");
+      }
+
       return response.json();
     },
-    enabled: !!user,
+    retry: 1,
   });
 
   // Fetch students
-  const { data: students = [], isLoading: isStudentsLoading } = useQuery<SelectStudent[]>({
+  const { data: students = [], isLoading: isStudentsLoading, error: studentsError } = useQuery<SelectStudent[]>({
     queryKey: ["/api/students"],
     queryFn: async () => {
       const token = localStorage.getItem("authToken");
+      if (!token) throw new Error("Authentication required");
+
       const response = await fetch("/api/students", {
         headers: {
           "Authorization": `Bearer ${token}`,
         },
       });
-      if (!response.ok) throw new Error("Failed to fetch students");
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          localStorage.removeItem("authToken");
+          throw new Error("Please log in again");
+        }
+        throw new Error("Failed to fetch students");
+      }
+
       return response.json();
     },
-    enabled: !!user,
+    retry: 1,
   });
 
   // Fetch price plans
-  const { data: pricePlans = [], isLoading: isPricePlansLoading } = useQuery<SelectPricePlan[]>({
+  const { data: pricePlans = [], isLoading: isPricePlansLoading, error: pricePlansError } = useQuery<SelectPricePlan[]>({
     queryKey: ["/api/price-plans"],
     queryFn: async () => {
       const token = localStorage.getItem("authToken");
+      if (!token) throw new Error("Authentication required");
+
       const response = await fetch("/api/price-plans", {
         headers: {
           "Authorization": `Bearer ${token}`,
         },
       });
-      if (!response.ok) throw new Error("Failed to fetch price plans");
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          localStorage.removeItem("authToken");
+          throw new Error("Please log in again");
+        }
+        throw new Error("Failed to fetch price plans");
+      }
+
       return response.json();
     },
-    enabled: !!user,
+    retry: 1,
   });
+
+  // Show error messages if any of the queries fail
+  if (teachersError || studentsError || pricePlansError) {
+    return (
+      <div className="p-6 text-center">
+        <p className="text-red-500">
+          {teachersError?.message || studentsError?.message || pricePlansError?.message}
+        </p>
+      </div>
+    );
+  }
 
   // Create class mutation
   const createClassMutation = useMutation({

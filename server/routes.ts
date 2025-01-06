@@ -1,6 +1,6 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
-import { setupAuth, crypto } from "./auth";
+import { setupAuth, crypto, jwt, JWT_SECRET } from "./auth"; // Assuming JWT_SECRET is exported from ./auth
 import { db } from "@db";
 import {
   users,
@@ -19,13 +19,39 @@ import { eq, count, sql, and, desc } from "drizzle-orm";
 
 // Authentication middleware with improved error handling
 const requireAuth = (req: Request, res: Response, next: NextFunction) => {
-  if (!req.user) {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader) {
     return res.status(401).json({ 
       error: "Authentication required",
-      message: "Please log in to access this resource"
+      message: "No token provided"
     });
   }
-  next();
+
+  const token = authHeader.split(" ")[1];
+  if (!token) {
+    return res.status(401).json({ 
+      error: "Authentication required",
+      message: "Invalid token format"
+    });
+  }
+
+  // Verify token and attach user data
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as {
+      id: string;
+      email: string;
+      role: string;
+      fullName: string | null;
+    };
+    req.user = decoded;
+    next();
+  } catch (error) {
+    return res.status(401).json({ 
+      error: "Authentication required",
+      message: "Invalid or expired token"
+    });
+  }
 };
 
 const requireAdmin = (req: Request, res: Response, next: NextFunction) => {
