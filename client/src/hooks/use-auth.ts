@@ -1,10 +1,17 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import type { SelectUser } from "@db/schema";
+
+interface User {
+  id: string;
+  email: string;
+  role: string;
+  fullName: string | null;
+}
 
 interface AuthResponse {
+  message: string;
+  user: User;
   token: string;
-  user: SelectUser;
 }
 
 interface LoginCredentials {
@@ -25,7 +32,7 @@ export function useAuth() {
     } : undefined;
   };
 
-  const { data: user, isLoading, error } = useQuery<SelectUser | null>({
+  const { data: user, isLoading, error } = useQuery<User>({
     queryKey: ["/api/user"],
     queryFn: async () => {
       const headers = getAuthHeaders();
@@ -38,7 +45,8 @@ export function useAuth() {
           localStorage.removeItem("authToken");
           return null;
         }
-        throw new Error("Failed to fetch user data");
+        const errorText = await response.text();
+        throw new Error(errorText || "Failed to fetch user data");
       }
 
       return response.json();
@@ -56,16 +64,16 @@ export function useAuth() {
       });
 
       if (!response.ok) {
-        const error = await response.text();
-        throw new Error(error || "Login failed");
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Login failed");
       }
 
       const data: AuthResponse = await response.json();
       localStorage.setItem("authToken", data.token);
       return data.user;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+    onSuccess: (user) => {
+      queryClient.setQueryData(["/api/user"], user);
       toast({
         title: "Success",
         description: "Logged in successfully"
@@ -82,17 +90,6 @@ export function useAuth() {
 
   const logout = useMutation({
     mutationFn: async () => {
-      const headers = getAuthHeaders();
-      if (headers) {
-        try {
-          await fetch("/api/logout", {
-            method: "POST",
-            headers
-          });
-        } catch (error) {
-          console.error("Logout request failed:", error);
-        }
-      }
       localStorage.removeItem("authToken");
       queryClient.setQueryData(["/api/user"], null);
       queryClient.clear();
