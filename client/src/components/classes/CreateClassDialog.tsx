@@ -61,6 +61,7 @@ const createClassSchema = z.object({
   teacherId: z.string().uuid("Please select a teacher"),
   pricePlanId: z.string().uuid("Please select a price plan"),
   startDate: z.string().min(1, "Start date is required"),
+  endDate: z.string().min(1, "End date is required"),
   defaultDuration: z.coerce.number().min(30, "Duration must be at least 30 minutes"),
   schedule: z.object({
     days: z.array(z.string()).min(1, "Select at least one day"),
@@ -95,6 +96,7 @@ export default function CreateClassDialog({ open, onOpenChange }: CreateClassDia
       teacherId: "",
       pricePlanId: "",
       startDate: new Date().toISOString().split("T")[0],
+      endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0], // 1 week from now
       defaultDuration: 60,
       schedule: {
         days: [],
@@ -139,7 +141,7 @@ export default function CreateClassDialog({ open, onOpenChange }: CreateClassDia
         headers: {
           "Content-Type": "application/json",
         },
-        credentials: "include",
+        credentials: "include", // Important for sending cookies
         body: JSON.stringify(data),
       });
 
@@ -195,7 +197,7 @@ export default function CreateClassDialog({ open, onOpenChange }: CreateClassDia
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[700px]">
+      <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Create New Class</DialogTitle>
           <DialogDescription>
@@ -360,7 +362,20 @@ export default function CreateClassDialog({ open, onOpenChange }: CreateClassDia
                     <FormItem>
                       <FormLabel>Start Date</FormLabel>
                       <FormControl>
-                        <Input type="date" {...field} />
+                        <Input 
+                          type="date" 
+                          {...field}
+                          onChange={(e) => {
+                            field.onChange(e.target.value);
+                            // Set end date to at least a week after start date
+                            const startDate = new Date(e.target.value);
+                            const minEndDate = new Date(startDate.getTime() + 7 * 24 * 60 * 60 * 1000);
+                            const currentEndDate = new Date(form.getValues("endDate"));
+                            if (currentEndDate < minEndDate) {
+                              form.setValue("endDate", minEndDate.toISOString().split("T")[0]);
+                            }
+                          }}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -369,14 +384,15 @@ export default function CreateClassDialog({ open, onOpenChange }: CreateClassDia
 
                 <FormField
                   control={form.control}
-                  name="defaultDuration"
+                  name="endDate"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Session Duration (minutes)</FormLabel>
+                      <FormLabel>End Date</FormLabel>
                       <FormControl>
-                        <Input
-                          type="number"
+                        <Input 
+                          type="date" 
                           {...field}
+                          min={new Date(form.getValues("startDate")).toISOString().split("T")[0]}
                         />
                       </FormControl>
                       <FormMessage />
