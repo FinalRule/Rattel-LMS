@@ -26,17 +26,17 @@ import { z } from "zod";
 import { useToast } from "@/hooks/use-toast";
 
 const createTeacherSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(6),
-  fullName: z.string().min(1),
+  email: z.string().email("Invalid email address"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
+  fullName: z.string().min(1, "Full name is required"),
   phone: z.string().optional(),
   whatsapp: z.string().optional(),
-  timezone: z.string().min(1),
+  timezone: z.string().min(1, "Timezone is required"),
   bio: z.string().optional(),
-  residenceCity: z.string().min(1),
-  baseSalaryPerHour: z.number().min(0),
-  googleAccount: z.string().email().optional(),
-  bufferTimePreference: z.number().min(0).optional(),
+  residenceCity: z.string().min(1, "City of residence is required"),
+  baseSalaryPerHour: z.number().min(0, "Base salary must be non-negative"),
+  googleAccount: z.string().email("Invalid email address").optional(),
+  bufferTimePreference: z.number().min(0, "Buffer time must be non-negative").optional(),
   notes: z.string().optional(),
 });
 
@@ -56,8 +56,18 @@ export default function CreateTeacherDialog({
   const form = useForm<CreateTeacherForm>({
     resolver: zodResolver(createTeacherSchema),
     defaultValues: {
+      email: "",
+      password: "",
+      fullName: "",
+      phone: "",
+      whatsapp: "",
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      bio: "",
+      residenceCity: "",
+      baseSalaryPerHour: 0,
+      googleAccount: "",
       bufferTimePreference: 15,
+      notes: "",
     },
   });
 
@@ -230,11 +240,10 @@ export default function CreateTeacherDialog({
                     <FormLabel>Base Salary per Hour ($)</FormLabel>
                     <FormControl>
                       <Input
-                        {...field}
                         type="number"
-                        onChange={(e) =>
-                          field.onChange(parseFloat(e.target.value))
-                        }
+                        {...field}
+                        onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                        value={field.value}
                       />
                     </FormControl>
                     <FormMessage />
@@ -281,11 +290,10 @@ export default function CreateTeacherDialog({
                     <FormLabel>Buffer Time (minutes)</FormLabel>
                     <FormControl>
                       <Input
-                        {...field}
                         type="number"
-                        onChange={(e) =>
-                          field.onChange(parseInt(e.target.value))
-                        }
+                        {...field}
+                        onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                        value={field.value}
                       />
                     </FormControl>
                     <FormDescription>
