@@ -1,6 +1,6 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
-import { setupAuth, crypto, jwt, JWT_SECRET } from "./auth"; // Assuming JWT_SECRET is exported from ./auth
+import { setupAuth, crypto } from "./auth";
 import { db } from "@db";
 import {
   users,
@@ -18,54 +18,20 @@ import {
 } from "@db/schema";
 import { eq, count, sql, and, desc } from "drizzle-orm";
 
-// Authentication middleware with improved error handling
-const requireAuth = (req: Request, res: Response, next: NextFunction) => {
-  const authHeader = req.headers.authorization;
-
-  if (!authHeader) {
-    return res.status(401).json({
-      error: "Authentication required",
-      message: "No token provided",
-    });
+// Add auth middleware for all /api routes except auth routes
+const apiAuthMiddleware = (req: Request, res: Response, next: NextFunction) => {
+  if (
+    req.path === "/api/login" ||
+    req.path === "/api/register" ||
+    req.path === "/api/user"
+  ) {
+    return next();
   }
 
-  const token = authHeader.split(" ")[1];
-  if (!token) {
-    return res.status(401).json({
-      error: "Authentication required",
-      message: "Invalid token format",
-    });
-  }
-
-  // Verify token and attach user data
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET) as {
-      id: string;
-      email: string;
-      role: string;
-      fullName: string | null;
-    };
-    req.user = decoded;
-    next();
-  } catch (error) {
-    return res.status(401).json({
-      error: "Authentication required",
-      message: "Invalid or expired token",
-    });
-  }
-};
-
-const requireAdmin = (req: Request, res: Response, next: NextFunction) => {
-  if (!req.user) {
+  if (!req.isAuthenticated()) {
     return res.status(401).json({
       error: "Authentication required",
       message: "Please log in to access this resource",
-    });
-  }
-  if (req.user.role !== "admin") {
-    return res.status(403).json({
-      error: "Access denied",
-      message: "This action requires administrator privileges",
     });
   }
   next();
@@ -75,21 +41,11 @@ export function registerRoutes(app: Express): Server {
   // Set up authentication routes first
   setupAuth(app);
 
-  // Add auth middleware for all /api routes except auth routes
-  app.use("/api/*", (req, res, next) => {
-    if (
-      req.path === "/api/login" ||
-      req.path === "/api/register" ||
-      req.path === "/api/user"
-    ) {
-      return next();
-    }
+  // Add auth middleware for all /api routes
+  app.use("/api/*", apiAuthMiddleware);
 
-    requireAuth(req, res, next);
-  });
-
-  // Price Plans routes - all require authentication
-  app.get("/api/price-plans", requireAuth, async (req, res) => {
+  // Price Plans routes
+  app.get("/api/price-plans", async (req, res) => {
     try {
       const allPricePlans = await db.query.pricePlans.findMany({
         with: {
@@ -103,8 +59,8 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Teachers routes - all require authentication
-  app.get("/api/teachers", requireAuth, async (req, res) => {
+  // Teachers routes
+  app.get("/api/teachers", async (req, res) => {
     try {
       const allTeachers = await db.query.teachers.findMany({
         with: {
@@ -117,8 +73,70 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Classes routes - all require authentication
-  app.get("/api/classes", requireAuth, async (req, res) => {
+  // Add teacher creation endpoint
+  app.post("/api/teachers", async (req, res) => {
+    try {
+      const {
+        email,
+        password,
+        fullName,
+        phone,
+        whatsapp,
+        timezone,
+        bio,
+        residenceCity,
+        baseSalaryPerHour,
+        googleAccount,
+        bufferTimePreference,
+        notes,
+      } = req.body;
+
+      // Create user and teacher in a transaction
+      const [teacher] = await db.transaction(async (tx) => {
+        // Hash the password before creating the user
+        const hashedPassword = await crypto.hash(password);
+
+        // Create user first
+        const [newUser] = await tx
+          .insert(users)
+          .values({
+            email,
+            password: hashedPassword,
+            fullName,
+            phone,
+            whatsapp,
+            timezone,
+            role: "teacher",
+            isActive: true,
+          })
+          .returning();
+
+        // Create teacher profile
+        const [newTeacher] = await tx
+          .insert(teachers)
+          .values({
+            userId: newUser.id,
+            bio,
+            residenceCity,
+            baseSalaryPerHour: baseSalaryPerHour.toString(),
+            bufferTimePreference,
+            notes,
+            googleAccount,
+          })
+          .returning();
+
+        return [{ ...newTeacher, user: newUser }];
+      });
+
+      res.json(teacher);
+    } catch (error: any) {
+      console.error("Error creating teacher:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Classes routes
+  app.get("/api/classes", async (req, res) => {
     try {
       const allClasses = await db.query.classes.findMany({
         with: {
@@ -141,7 +159,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.post("/api/classes", requireAuth, async (req, res) => {
+  app.post("/api/classes", async (req, res) => {
     try {
       const {
         name,
@@ -217,137 +235,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Add teacher creation endpoint with proper auth
-  app.post("/api/teachers", requireAuth, async (req, res) => {
-    try {
-      const {
-        email,
-        password,
-        fullName,
-        phone,
-        whatsapp,
-        timezone,
-        specialization,
-        yearsOfExperience,
-        hourlyRate,
-        availability,
-        bio,
-      } = req.body;
-
-      // Create user and teacher in a transaction
-      const [teacher] = await db.transaction(async (tx) => {
-        // Hash the password before creating the user
-        const hashedPassword = await crypto.hash(password);
-
-        // Create user first
-        const [newUser] = await tx
-          .insert(users)
-          .values({
-            email,
-            password: hashedPassword,
-            fullName,
-            phone,
-            whatsapp,
-            timezone,
-            role: "teacher",
-            isActive: true,
-          })
-          .returning();
-
-        // Create teacher profile
-        const [newTeacher] = await tx
-          .insert(teachers)
-          .values({
-            userId: newUser.id,
-            specialization,
-            yearsOfExperience,
-            hourlyRate: hourlyRate.toString(),
-            availability,
-            bio,
-          })
-          .returning();
-
-        return [{ ...newTeacher, user: newUser }];
-      });
-
-      res.json(teacher);
-    } catch (error: any) {
-      console.error("Error creating teacher:", error);
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  app.post("/api/price-plans", requireAuth, async (req, res) => {
-    try {
-      const {
-        name,
-        subjectId,
-        description,
-        monthlyPrice,
-        currency,
-        features,
-        isActive
-      } = req.body;
-
-      // Create the price plan
-      const [newPlan] = await db
-        .insert(pricePlans)
-        .values({
-          name,
-          subjectId,
-          description,
-          monthlyPrice: monthlyPrice.toString(),
-          currency,
-          features,
-          isActive: isActive ?? true,
-        })
-        .returning();
-
-      // Fetch the created plan with related data
-      const planWithRelations = await db.query.pricePlans.findFirst({
-        where: eq(pricePlans.id, newPlan.id),
-        with: {
-          subject: true,
-        },
-      });
-
-      res.json(planWithRelations);
-    } catch (error: any) {
-      console.error("Error creating price plan:", error);
-      res.status(400).json({ error: error.message });
-    }
-  });
-
-  app.delete("/api/price-plans/:id", requireAuth, async (req, res) => {
-    try {
-      const [updatedPlan] = await db
-        .update(pricePlans)
-        .set({
-          isActive: false,
-        })
-        .where(eq(pricePlans.id, req.params.id))
-        .returning();
-
-      if (!updatedPlan) {
-        return res.status(404).json({ error: "Price plan not found" });
-      }
-
-      // Fetch the updated plan with related data to return
-      const planWithRelations = await db.query.pricePlans.findFirst({
-        where: eq(pricePlans.id, updatedPlan.id),
-        with: {
-          subject: true,
-        },
-      });
-
-      res.json(planWithRelations);
-    } catch (error: any) {
-      console.error("Error deleting price plan:", error);
-      res.status(400).json({ error: error.message });
-    }
-  });
-
-  app.put("/api/classes/:id", requireAuth, async (req, res) => {
+  app.put("/api/classes/:id", async (req, res) => {
     try {
       const classId = req.params.id;
       const {
@@ -409,13 +297,14 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  //Subjects routes - all require authentication
-  app.get("/api/subjects", requireAuth, async (req, res) => {
+
+  //Subjects routes
+  app.get("/api/subjects", async (req, res) => {
     const allSubjects = await db.select().from(subjects);
     res.json(allSubjects);
   });
 
-  app.post("/api/subjects", requireAdmin, async (req, res) => {
+  app.post("/api/subjects", async (req, res) => {
     try {
       const subject = await db.insert(subjects).values({
         ...req.body,
@@ -427,7 +316,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.put("/api/subjects/:id", requireAdmin, async (req, res) => {
+  app.put("/api/subjects/:id", async (req, res) => {
     try {
       const [subject] = await db
         .update(subjects)
@@ -448,7 +337,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.delete("/api/subjects/:id", requireAdmin, async (req, res) => {
+  app.delete("/api/subjects/:id", async (req, res) => {
     try {
       const [subject] = await db
         .update(subjects)
@@ -466,19 +355,19 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Sessions - require auth for all operations
-  app.get("/api/sessions", requireAuth, async (req, res) => {
+  // Sessions
+  app.get("/api/sessions", async (req, res) => {
     const allSessions = await db.select().from(sessions);
     res.json(allSessions);
   });
 
-  app.post("/api/sessions", requireAuth, async (req, res) => {
+  app.post("/api/sessions", async (req, res) => {
     const session = await db.insert(sessions).values(req.body).returning();
     res.json(session[0]);
   });
 
-  // Session Attendance - require auth for all operations
-  app.patch("/api/sessions/:id/attendance", requireAuth, async (req, res) => {
+  // Session Attendance
+  app.patch("/api/sessions/:id/attendance", async (req, res) => {
     const { id } = req.params;
     const { userId, status, joinTime, leaveTime } = req.body;
 
@@ -500,19 +389,19 @@ export function registerRoutes(app: Express): Server {
     res.json(attendance[0]);
   });
 
-  // Payments - require auth for all operations
-  app.get("/api/payments", requireAuth, async (req, res) => {
+  // Payments
+  app.get("/api/payments", async (req, res) => {
     const allPayments = await db.select().from(payments);
     res.json(allPayments);
   });
 
-  app.post("/api/payments", requireAuth, async (req, res) => {
+  app.post("/api/payments", async (req, res) => {
     const payment = await db.insert(payments).values(req.body).returning();
     res.json(payment[0]);
   });
 
-  // Analytics endpoints - require auth for all operations
-  app.get("/api/analytics/attendance", requireAuth, async (req, res) => {
+  // Analytics endpoints
+  app.get("/api/analytics/attendance", async (req, res) => {
     const attendanceStats = await db
       .select({
         sessionId: sessionAttendance.sessionId,
@@ -525,7 +414,7 @@ export function registerRoutes(app: Express): Server {
     res.json(attendanceStats);
   });
 
-  app.get("/api/analytics/financial", requireAuth, async (req, res) => {
+  app.get("/api/analytics/financial", async (req, res) => {
     const financialStats = await db
       .select({
         totalAmount: payments.amount,
@@ -538,8 +427,8 @@ export function registerRoutes(app: Express): Server {
     res.json(financialStats);
   });
 
-  // Students - require auth for all operations
-  app.get("/api/students", requireAuth, async (req, res) => {
+  // Students
+  app.get("/api/students", async (req, res) => {
     try {
       const allStudents = await db.query.students.findMany({
         with: {
@@ -552,7 +441,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.post("/api/students", requireAdmin, async (req, res) => {
+  app.post("/api/students", async (req, res) => {
     try {
       const {
         email,
@@ -637,8 +526,8 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Student Stats - require auth for all operations
-  app.get("/api/students/:id/stats", requireAuth, async (req, res) => {
+  // Student Stats
+  app.get("/api/students/:id/stats", async (req, res) => {
     try {
       const studentId = req.params.id;
 
@@ -704,8 +593,8 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Student Financials - require auth for all operations
-  app.get("/api/students/:id/financials", requireAuth, async (req, res) => {
+  // Student Financials
+  app.get("/api/students/:id/financials", async (req, res) => {
     try {
       const studentId = req.params.id;
       const currentDate = new Date();

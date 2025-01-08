@@ -82,7 +82,7 @@ export default function CreateTeacherDialog({
           "Content-Type": "application/json",
         },
         body: JSON.stringify(data),
-        credentials: "include",
+        credentials: "include",  // Important: include credentials for session cookie
       });
 
       if (!response.ok) {
