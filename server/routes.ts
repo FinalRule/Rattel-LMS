@@ -199,7 +199,7 @@ export function registerRoutes(app: Express): Server {
 
         // Generate sessions for the class
         await generateClassSessions(
-          createdClass.id,
+          createdClass.id.toString(), //changed to string
           new Date(startDate),
           new Date(endDate),
           schedule,
@@ -690,15 +690,45 @@ export function registerRoutes(app: Express): Server {
   return httpServer;
 }
 
-// Placeholder function -  needs to be implemented elsewhere
+// Updated generateClassSessions function
 async function generateClassSessions(
-  classId: number,
+  classId: string,
   startDate: Date,
   endDate: Date,
-  schedule: any, // Define the schedule type properly.
+  schedule: { days: string[], time: string }[],
   defaultDuration: number
 ): Promise<void> {
-  //Implementation to generate sessions based on schedule and duration.  This is a placeholder.
-  console.log("Generating sessions for class:", classId);
-  //Add your session generation logic here.  This will likely involve inserting into the 'sessions' table.
+  try {
+    const sessions = [];
+    const currentDate = new Date(startDate);
+
+    while (currentDate <= endDate) {
+      for (const slot of schedule) {
+        const dayName = currentDate.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+
+        if (slot.days.includes(dayName)) {
+          const [hours, minutes] = slot.time.split(':').map(Number);
+          const sessionDate = new Date(currentDate);
+          sessionDate.setHours(hours, minutes, 0, 0);
+
+          sessions.push({
+            classId,
+            dateTime: sessionDate.toISOString(),
+            plannedDuration: defaultDuration,
+            status: 'scheduled',
+          });
+        }
+      }
+
+      // Move to next day
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    if (sessions.length > 0) {
+      await db.insert(sessions).into(sessions).values(sessions);
+    }
+  } catch (error) {
+    console.error('Error generating sessions:', error);
+    throw error;
+  }
 }
