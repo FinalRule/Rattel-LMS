@@ -21,23 +21,22 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { insertTeacherSchema } from "@db/schema";
 import { z } from "zod";
 import { useToast } from "@/hooks/use-toast";
 
 const createTeacherSchema = z.object({
-  email: z.string().email("Invalid email address"),
+  email: z.string().min(1, "Email is required").email("Invalid email address"),
   password: z.string().min(6, "Password must be at least 6 characters"),
   fullName: z.string().min(1, "Full name is required"),
-  phone: z.string().optional(),
-  whatsapp: z.string().optional(),
+  phone: z.string().optional().nullable(),
+  whatsapp: z.string().optional().nullable(),
   timezone: z.string().min(1, "Timezone is required"),
-  bio: z.string().optional(),
+  bio: z.string().optional().nullable(),
   residenceCity: z.string().min(1, "City of residence is required"),
-  baseSalaryPerHour: z.number().min(0, "Base salary must be non-negative"),
-  googleAccount: z.string().email("Invalid email address").optional(),
-  bufferTimePreference: z.number().min(0, "Buffer time must be non-negative").optional(),
-  notes: z.string().optional(),
+  baseSalaryPerHour: z.coerce.number().min(0, "Base salary must be non-negative"),
+  googleAccount: z.string().optional().nullable().transform(val => val || null),
+  bufferTimePreference: z.coerce.number().min(0, "Buffer time must be non-negative"),
+  notes: z.string().optional().nullable(),
 });
 
 type CreateTeacherForm = z.infer<typeof createTeacherSchema>;
@@ -53,59 +52,42 @@ export default function CreateTeacherDialog({
 }: CreateTeacherDialogProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  const defaultValues: CreateTeacherForm = {
+    email: "",
+    password: "",
+    fullName: "",
+    phone: "",
+    whatsapp: "",
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    bio: "",
+    residenceCity: "",
+    baseSalaryPerHour: 0,
+    googleAccount: "",
+    bufferTimePreference: 15,
+    notes: "",
+  };
+
   const form = useForm<CreateTeacherForm>({
     resolver: zodResolver(createTeacherSchema),
-    defaultValues: {
-      email: "",
-      password: "",
-      fullName: "",
-      phone: "",
-      whatsapp: "",
-      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      bio: "",
-      residenceCity: "",
-      baseSalaryPerHour: 0,
-      googleAccount: "",
-      bufferTimePreference: 15,
-      notes: "",
-    },
+    defaultValues,
+    mode: "onChange",
   });
-
-  // Auth token helper
-  const getAuthHeaders = () => {
-    const token = localStorage.getItem("authToken");
-    if (!token) {
-      toast({
-        title: "Authentication Error",
-        description: "Please log in to continue",
-        variant: "destructive",
-      });
-      return null;
-    }
-    return {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    };
-  };
 
   const createTeacher = useMutation({
     mutationFn: async (data: CreateTeacherForm) => {
-      const headers = getAuthHeaders();
-      if (!headers) throw new Error("Authentication required");
-
       const response = await fetch("/api/teachers", {
         method: "POST",
-        headers,
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify(data),
+        credentials: "include",
       });
 
       if (!response.ok) {
-        if (response.status === 401) {
-          localStorage.removeItem("authToken");
-          throw new Error("Please log in again");
-        }
-        const errorText = await response.text();
-        throw new Error(errorText || "Failed to create teacher");
+        const error = await response.text();
+        throw new Error(error || "Failed to create teacher");
       }
 
       return response.json();
@@ -116,7 +98,7 @@ export default function CreateTeacherDialog({
         title: "Success",
         description: "Teacher created successfully",
       });
-      form.reset();
+      form.reset(defaultValues);
       onOpenChange(false);
     },
     onError: (error: Error) => {
@@ -127,6 +109,10 @@ export default function CreateTeacherDialog({
       });
     },
   });
+
+  const onSubmit = (data: CreateTeacherForm) => {
+    createTeacher.mutate(data);
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -140,7 +126,7 @@ export default function CreateTeacherDialog({
 
         <Form {...form}>
           <form
-            onSubmit={form.handleSubmit((data) => createTeacher.mutate(data))}
+            onSubmit={form.handleSubmit(onSubmit)}
             className="space-y-6 max-h-[60vh] overflow-y-auto pr-6"
           >
             <div className="grid gap-4 py-4">
@@ -152,7 +138,7 @@ export default function CreateTeacherDialog({
                     <FormItem>
                       <FormLabel>Email</FormLabel>
                       <FormControl>
-                        <Input {...field} type="email" />
+                        <Input type="email" {...field} value={field.value || ""} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -166,7 +152,7 @@ export default function CreateTeacherDialog({
                     <FormItem>
                       <FormLabel>Password</FormLabel>
                       <FormControl>
-                        <Input {...field} type="password" />
+                        <Input type="password" {...field} value={field.value || ""} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -181,7 +167,7 @@ export default function CreateTeacherDialog({
                   <FormItem>
                     <FormLabel>Full Name</FormLabel>
                     <FormControl>
-                      <Input {...field} />
+                      <Input {...field} value={field.value || ""} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -196,7 +182,7 @@ export default function CreateTeacherDialog({
                     <FormItem>
                       <FormLabel>Phone</FormLabel>
                       <FormControl>
-                        <Input {...field} />
+                        <Input {...field} value={field.value || ""} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -210,7 +196,7 @@ export default function CreateTeacherDialog({
                     <FormItem>
                       <FormLabel>WhatsApp</FormLabel>
                       <FormControl>
-                        <Input {...field} />
+                        <Input {...field} value={field.value || ""} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -225,7 +211,7 @@ export default function CreateTeacherDialog({
                   <FormItem>
                     <FormLabel>City of Residence</FormLabel>
                     <FormControl>
-                      <Input {...field} />
+                      <Input {...field} value={field.value || ""} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -242,8 +228,8 @@ export default function CreateTeacherDialog({
                       <Input
                         type="number"
                         {...field}
-                        onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
-                        value={field.value}
+                        onChange={(e) => field.onChange(e.target.valueAsNumber || 0)}
+                        value={field.value || 0}
                       />
                     </FormControl>
                     <FormMessage />
@@ -258,7 +244,7 @@ export default function CreateTeacherDialog({
                   <FormItem>
                     <FormLabel>Bio</FormLabel>
                     <FormControl>
-                      <Textarea {...field} />
+                      <Textarea {...field} value={field.value || ""} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -272,7 +258,7 @@ export default function CreateTeacherDialog({
                   <FormItem>
                     <FormLabel>Google Account</FormLabel>
                     <FormControl>
-                      <Input {...field} type="email" />
+                      <Input type="email" {...field} value={field.value || ""} />
                     </FormControl>
                     <FormDescription>
                       Used for Google Meet integration
@@ -292,8 +278,8 @@ export default function CreateTeacherDialog({
                       <Input
                         type="number"
                         {...field}
-                        onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
-                        value={field.value}
+                        onChange={(e) => field.onChange(e.target.valueAsNumber || 0)}
+                        value={field.value || 0}
                       />
                     </FormControl>
                     <FormDescription>
@@ -311,7 +297,7 @@ export default function CreateTeacherDialog({
                   <FormItem>
                     <FormLabel>Additional Notes</FormLabel>
                     <FormControl>
-                      <Textarea {...field} />
+                      <Textarea {...field} value={field.value || ""} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
