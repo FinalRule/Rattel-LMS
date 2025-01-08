@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { format } from "date-fns";
 
 interface ClassDetailsProps {
   classData: SelectClass;
@@ -18,27 +19,11 @@ interface ClassDetailsProps {
   onOpenChange: (open: boolean) => void;
 }
 
-interface ClassStats {
-  totalSessions: number;
-  completedSessions: number;
-  averageAttendance: number;
-  studentProgress?: Array<{
-    studentId: string;
-    studentName: string;
-    attendanceRate: number;
-    averageScore: number;
-  }>;
-}
-
-interface ClassFinancials {
-  totalRevenue: number;
-  teacherPayouts: number;
-  profitMargin: number;
-  monthlyBreakdown?: Array<{
-    month: string;
-    revenue: number;
-    expenses: number;
-  }>;
+interface Session {
+  id: string;
+  dateTime: string;
+  status: string;
+  plannedDuration: number;
 }
 
 export default function ClassDetailsDialog({
@@ -46,6 +31,12 @@ export default function ClassDetailsDialog({
   open,
   onOpenChange,
 }: ClassDetailsProps) {
+  // Fetch sessions for this class
+  const { data: sessions, isLoading: loadingSessions } = useQuery<Session[]>({
+    queryKey: ["/api/classes", classData.id, "sessions"],
+    enabled: !!classData.id,
+  });
+
   const { data: stats, isLoading: loadingStats } = useQuery<ClassStats>({
     queryKey: ["/api/classes", classData.id, "stats"],
   });
@@ -97,7 +88,7 @@ export default function ClassDetailsDialog({
         </DialogHeader>
 
         <Tabs defaultValue="overview" className="w-full h-full">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList>
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="sessions">Sessions</TabsTrigger>
             <TabsTrigger value="students">Students</TabsTrigger>
@@ -157,15 +148,47 @@ export default function ClassDetailsDialog({
               )}
             </TabsContent>
 
-            <TabsContent value="sessions" className="space-y-4">
+            <TabsContent value="sessions">
               <Card>
                 <CardHeader>
                   <CardTitle>Session Schedule</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <pre className="text-sm">
-                    {JSON.stringify(classData.schedule, null, 2)}
-                  </pre>
+                  {loadingSessions ? (
+                    <div className="flex items-center justify-center h-48">
+                      <Loader2 className="h-8 w-8 animate-spin" />
+                    </div>
+                  ) : sessions && sessions.length > 0 ? (
+                    <div className="space-y-4">
+                      {sessions.map((session) => (
+                        <div
+                          key={session.id}
+                          className="flex justify-between items-center p-4 border rounded-lg"
+                        >
+                          <div>
+                            <div className="font-medium">
+                              {format(new Date(session.dateTime), 'EEEE, MMMM d, yyyy')}
+                            </div>
+                            <div className="text-sm text-muted-foreground">
+                              {format(new Date(session.dateTime), 'h:mm a')} - Duration: {session.plannedDuration} minutes
+                            </div>
+                          </div>
+                          <Badge variant={
+                            session.status === 'completed' ? 'default' :
+                            session.status === 'scheduled' ? 'secondary' :
+                            session.status === 'cancelled' ? 'destructive' :
+                            'outline'
+                          }>
+                            {session.status}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center text-muted-foreground py-8">
+                      No sessions scheduled
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -252,4 +275,27 @@ export default function ClassDetailsDialog({
       </DialogContent>
     </Dialog>
   );
+}
+
+interface ClassStats {
+  totalSessions: number;
+  completedSessions: number;
+  averageAttendance: number;
+  studentProgress?: Array<{
+    studentId: string;
+    studentName: string;
+    attendanceRate: number;
+    averageScore: number;
+  }>;
+}
+
+interface ClassFinancials {
+  totalRevenue: number;
+  teacherPayouts: number;
+  profitMargin: number;
+  monthlyBreakdown?: Array<{
+    month: string;
+    revenue: number;
+    expenses: number;
+  }>;
 }

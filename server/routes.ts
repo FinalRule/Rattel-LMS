@@ -1,7 +1,8 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
-import { setupAuth, crypto } from "./auth";
+import { setupAuth } from "./auth";
 import { db } from "@db";
+import { generateClassSessions } from "./scheduler";
 import {
   users,
   teachers,
@@ -166,6 +167,7 @@ export function registerRoutes(app: Express): Server {
         teacherId,
         pricePlanId,
         startDate,
+        endDate,
         defaultDuration,
         schedule,
         monthlyPrice,
@@ -175,7 +177,7 @@ export function registerRoutes(app: Express): Server {
         selectedStudentIds
       } = req.body;
 
-      // Create the class
+      // Create the class and generate sessions in a transaction
       const [newClass] = await db.transaction(async (tx) => {
         // Create the class first
         const [createdClass] = await tx
@@ -194,6 +196,15 @@ export function registerRoutes(app: Express): Server {
             status: "active",
           })
           .returning();
+
+        // Generate sessions for the class
+        await generateClassSessions(
+          createdClass.id,
+          new Date(startDate),
+          new Date(endDate),
+          schedule,
+          defaultDuration
+        );
 
         // If students are selected, create enrollments
         if (selectedStudentIds?.length > 0) {
@@ -297,6 +308,23 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+
+  // Add new endpoint for fetching class sessions
+  app.get("/api/classes/:id/sessions", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const classSessions = await db
+        .select()
+        .from(sessions)
+        .where(eq(sessions.classId, id))
+        .orderBy(desc(sessions.dateTime));
+
+      res.json(classSessions);
+    } catch (error: any) {
+      console.error("Error fetching class sessions:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
 
   //Subjects routes
   app.get("/api/subjects", async (req, res) => {
@@ -660,4 +688,17 @@ export function registerRoutes(app: Express): Server {
   // Create HTTP server
   const httpServer = createServer(app);
   return httpServer;
+}
+
+// Placeholder function -  needs to be implemented elsewhere
+async function generateClassSessions(
+  classId: number,
+  startDate: Date,
+  endDate: Date,
+  schedule: any, // Define the schedule type properly.
+  defaultDuration: number
+): Promise<void> {
+  //Implementation to generate sessions based on schedule and duration.  This is a placeholder.
+  console.log("Generating sessions for class:", classId);
+  //Add your session generation logic here.  This will likely involve inserting into the 'sessions' table.
 }

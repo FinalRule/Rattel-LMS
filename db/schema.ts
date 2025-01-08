@@ -136,12 +136,11 @@ export const classEnrollments = pgTable("class_enrollments", {
   pk: primaryKey(table.classId, table.studentId)
 }));
 
-// Sessions
+// Sessions table
 export const sessions = pgTable("sessions", {
   id: uuid("id").defaultRandom().primaryKey(),
   classId: uuid("class_id").references(() => classes.id),
-  sessionNumber: integer("session_number").notNull(),
-  startTime: timestamp("start_time", { withTimezone: true }).notNull(),
+  dateTime: timestamp("date_time", { withTimezone: true }).notNull(),
   plannedDuration: integer("planned_duration").notNull(),
   actualDuration: integer("actual_duration"),
   googleMeetLink: text("google_meet_link"),
@@ -294,3 +293,15 @@ export type SelectClassWithRelations = SelectClass & {
     subject: SelectSubject;
   };
 };
+
+// Session types and schemas
+export type InsertSession = typeof sessions.$inferInsert;
+export type SelectSession = typeof sessions.$inferSelect;
+
+// Session relations
+export const sessionRelations = relations(sessions, ({ one }) => ({
+  class: one(classes, {
+    fields: [sessions.classId],
+    references: [classes.id],
+  }),
+}));
