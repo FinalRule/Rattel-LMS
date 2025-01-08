@@ -14,6 +14,7 @@ import {
   students,
   classEnrollments,
   pricePlans,
+  insertTeacherSchema,
 } from "@db/schema";
 import { eq, count, sql, and, desc } from "drizzle-orm";
 
@@ -22,17 +23,17 @@ const requireAuth = (req: Request, res: Response, next: NextFunction) => {
   const authHeader = req.headers.authorization;
 
   if (!authHeader) {
-    return res.status(401).json({ 
+    return res.status(401).json({
       error: "Authentication required",
-      message: "No token provided"
+      message: "No token provided",
     });
   }
 
   const token = authHeader.split(" ")[1];
   if (!token) {
-    return res.status(401).json({ 
+    return res.status(401).json({
       error: "Authentication required",
-      message: "Invalid token format"
+      message: "Invalid token format",
     });
   }
 
@@ -47,24 +48,24 @@ const requireAuth = (req: Request, res: Response, next: NextFunction) => {
     req.user = decoded;
     next();
   } catch (error) {
-    return res.status(401).json({ 
+    return res.status(401).json({
       error: "Authentication required",
-      message: "Invalid or expired token"
+      message: "Invalid or expired token",
     });
   }
 };
 
 const requireAdmin = (req: Request, res: Response, next: NextFunction) => {
   if (!req.user) {
-    return res.status(401).json({ 
+    return res.status(401).json({
       error: "Authentication required",
-      message: "Please log in to access this resource"
+      message: "Please log in to access this resource",
     });
   }
   if (req.user.role !== "admin") {
-    return res.status(403).json({ 
+    return res.status(403).json({
       error: "Access denied",
-      message: "This action requires administrator privileges"
+      message: "This action requires administrator privileges",
     });
   }
   next();
@@ -216,7 +217,66 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Add this route after the existing POST /api/classes route
+  // Add teacher creation endpoint with proper auth
+  app.post("/api/teachers", requireAuth, async (req, res) => {
+    try {
+      const {
+        email,
+        password,
+        fullName,
+        phone,
+        whatsapp,
+        timezone,
+        specialization,
+        yearsOfExperience,
+        hourlyRate,
+        availability,
+        bio,
+      } = req.body;
+
+      // Create user and teacher in a transaction
+      const [teacher] = await db.transaction(async (tx) => {
+        // Hash the password before creating the user
+        const hashedPassword = await crypto.hash(password);
+
+        // Create user first
+        const [newUser] = await tx
+          .insert(users)
+          .values({
+            email,
+            password: hashedPassword,
+            fullName,
+            phone,
+            whatsapp,
+            timezone,
+            role: "teacher",
+            isActive: true,
+          })
+          .returning();
+
+        // Create teacher profile
+        const [newTeacher] = await tx
+          .insert(teachers)
+          .values({
+            userId: newUser.id,
+            specialization,
+            yearsOfExperience,
+            hourlyRate: hourlyRate.toString(),
+            availability,
+            bio,
+          })
+          .returning();
+
+        return [{ ...newTeacher, user: newUser }];
+      });
+
+      res.json(teacher);
+    } catch (error: any) {
+      console.error("Error creating teacher:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.post("/api/price-plans", requireAuth, async (req, res) => {
     try {
       const {
@@ -258,7 +318,6 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Add this route after the existing POST /api/price-plans route
   app.delete("/api/price-plans/:id", requireAuth, async (req, res) => {
     try {
       const [updatedPlan] = await db
