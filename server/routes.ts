@@ -258,6 +258,36 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Add this route after the existing POST /api/price-plans route
+  app.delete("/api/price-plans/:id", requireAuth, async (req, res) => {
+    try {
+      const [updatedPlan] = await db
+        .update(pricePlans)
+        .set({
+          isActive: false,
+        })
+        .where(eq(pricePlans.id, req.params.id))
+        .returning();
+
+      if (!updatedPlan) {
+        return res.status(404).json({ error: "Price plan not found" });
+      }
+
+      // Fetch the updated plan with related data to return
+      const planWithRelations = await db.query.pricePlans.findFirst({
+        where: eq(pricePlans.id, updatedPlan.id),
+        with: {
+          subject: true,
+        },
+      });
+
+      res.json(planWithRelations);
+    } catch (error: any) {
+      console.error("Error deleting price plan:", error);
+      res.status(400).json({ error: error.message });
+    }
+  });
+
   app.put("/api/classes/:id", requireAuth, async (req, res) => {
     try {
       const classId = req.params.id;
