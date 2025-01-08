@@ -96,7 +96,7 @@ export default function CreateStudentDialog({ open, onOpenChange }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[625px] h-[90vh] flex flex-col">
+      <DialogContent className="sm:max-w-[625px] max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle>Add New Student</DialogTitle>
         </DialogHeader>
@@ -104,7 +104,7 @@ export default function CreateStudentDialog({ open, onOpenChange }: Props) {
         <Form {...form}>
           <form
             onSubmit={form.handleSubmit((data) => createStudent.mutate(data))}
-            className="flex-1 flex flex-col"
+            className="flex flex-col h-full"
           >
             <div className="flex-1 overflow-y-auto pr-6">
               <div className="grid gap-4 py-4">
@@ -256,7 +256,7 @@ export default function CreateStudentDialog({ open, onOpenChange }: Props) {
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 pt-4 border-t mt-4">
+            <div className="flex justify-end gap-3 pt-4 border-t mt-4 bg-background">
               <Button
                 type="button"
                 variant="outline"
