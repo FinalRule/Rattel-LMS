@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import {
   Card,
@@ -14,18 +14,64 @@ import {
   Calendar,
   Edit2,
   BookOpen,
-  Trash2
+  Trash2,
+  AlertCircle
 } from "lucide-react";
 import { Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/hooks/use-toast";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import type { SelectPricePlan } from "@db/schema";
 import PricePlanDetailsDialog from "./PricePlanDetailsDialog";
 
 export default function PricePlanList() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [selectedPlan, setSelectedPlan] = useState<SelectPricePlan | null>(null);
+  const [planToDelete, setPlanToDelete] = useState<SelectPricePlan | null>(null);
 
   const { data: pricePlans, isLoading, error } = useQuery<SelectPricePlan[]>({
     queryKey: ["/api/price-plans"],
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (planId: string) => {
+      const response = await fetch(`/api/price-plans/${planId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const error = await response.text();
+        throw new Error(error);
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: "Price plan deleted successfully",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/price-plans"] });
+      setPlanToDelete(null);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
   });
 
   if (isLoading) {
@@ -39,7 +85,10 @@ export default function PricePlanList() {
   if (error) {
     return (
       <div className="flex items-center justify-center h-64">
-        <p className="text-destructive">Error loading price plans: {error.message}</p>
+        <div className="text-center space-y-2">
+          <AlertCircle className="h-8 w-8 text-destructive mx-auto" />
+          <p className="text-destructive">Error loading price plans: {error.message}</p>
+        </div>
       </div>
     );
   }
@@ -126,6 +175,14 @@ export default function PricePlanList() {
                   >
                     <Edit2 className="h-4 w-4" />
                   </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setPlanToDelete(plan)}
+                    className="text-destructive hover:text-destructive"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 </div>
               </div>
             </CardHeader>
@@ -171,6 +228,34 @@ export default function PricePlanList() {
           onOpenChange={(open) => !open && setSelectedPlan(null)}
         />
       )}
+
+      <AlertDialog 
+        open={!!planToDelete}
+        onOpenChange={(open) => !open && setPlanToDelete(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will mark the price plan "{planToDelete?.name}" as inactive. 
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => planToDelete && deleteMutation.mutate(planToDelete.id)}
+              className="bg-destructive hover:bg-destructive/90"
+            >
+              {deleteMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                "Delete"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -45,11 +45,53 @@ export default function PricePlanDetailsDialog({
 }: PricePlanDetailsProps) {
   const { data: stats, isLoading: loadingStats } = useQuery<PlanStats>({
     queryKey: ["/api/price-plans", plan.id, "stats"],
+    enabled: open, // Only fetch when dialog is open
   });
 
   const { data: financials, isLoading: loadingFinancials } = useQuery<FinancialStats>({
     queryKey: ["/api/price-plans", plan.id, "financials"],
+    enabled: open, // Only fetch when dialog is open
   });
+
+  const renderStudentHistory = () => {
+    if (!stats?.studentHistory?.length) {
+      return (
+        <div className="text-center py-4 text-muted-foreground">
+          No student history available
+        </div>
+      );
+    }
+
+    return stats.studentHistory.map((student) => (
+      <div key={student.studentId} className="border-b pb-4">
+        <h4 className="font-medium">{student.studentName}</h4>
+        <dl className="grid grid-cols-2 gap-2 text-sm mt-2">
+          <dt>Enrollment Date</dt>
+          <dd>{new Date(student.enrollmentDate).toLocaleDateString()}</dd>
+          <dt>Status</dt>
+          <dd>{student.status}</dd>
+        </dl>
+      </div>
+    ));
+  };
+
+  const renderFinancialBreakdown = () => {
+    if (!financials?.monthlyBreakdown?.length) {
+      return (
+        <div className="text-center py-4 text-muted-foreground">
+          No financial data available
+        </div>
+      );
+    }
+
+    return financials.monthlyBreakdown.map((month) => (
+      <div key={month.month} className="grid grid-cols-3 text-sm">
+        <span>{month.month}</span>
+        <span>Revenue: {month.revenue} {plan.currency}</span>
+        <span>Students: {month.studentCount}</span>
+      </div>
+    ));
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -116,11 +158,11 @@ export default function PricePlanDetailsDialog({
                   <CardContent>
                     <dl className="grid grid-cols-2 gap-2 text-sm">
                       <dt className="font-medium">Active Students</dt>
-                      <dd>{stats?.activeStudents}</dd>
+                      <dd>{stats?.activeStudents ?? 0}</dd>
                       <dt className="font-medium">Total Revenue</dt>
-                      <dd>{stats?.totalRevenue} {plan.currency}</dd>
+                      <dd>{stats?.totalRevenue ?? 0} {plan.currency}</dd>
                       <dt className="font-medium">Average Retention</dt>
-                      <dd>{stats?.averageStudentRetention}%</dd>
+                      <dd>{stats?.averageStudentRetention ?? 0}%</dd>
                     </dl>
                   </CardContent>
                 </Card>
@@ -139,17 +181,7 @@ export default function PricePlanDetailsDialog({
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
-                      {stats?.studentHistory.map((student) => (
-                        <div key={student.studentId} className="border-b pb-4">
-                          <h4 className="font-medium">{student.studentName}</h4>
-                          <dl className="grid grid-cols-2 gap-2 text-sm mt-2">
-                            <dt>Enrollment Date</dt>
-                            <dd>{new Date(student.enrollmentDate).toLocaleDateString()}</dd>
-                            <dt>Status</dt>
-                            <dd>{student.status}</dd>
-                          </dl>
-                        </div>
-                      ))}
+                      {renderStudentHistory()}
                     </div>
                   </CardContent>
                 </Card>
@@ -168,13 +200,7 @@ export default function PricePlanDetailsDialog({
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-2">
-                      {financials?.monthlyBreakdown.map((month) => (
-                        <div key={month.month} className="grid grid-cols-3 text-sm">
-                          <span>{month.month}</span>
-                          <span>Revenue: {month.revenue} {plan.currency}</span>
-                          <span>Students: {month.studentCount}</span>
-                        </div>
-                      ))}
+                      {renderFinancialBreakdown()}
                     </div>
                   </CardContent>
                 </Card>
