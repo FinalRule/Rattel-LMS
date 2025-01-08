@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 
 interface ClassDetailsProps {
   classData: SelectClass;
@@ -33,18 +33,82 @@ export default function ClassDetailsDialog({
 }: ClassDetailsProps) {
   // Fetch sessions for this class
   const { data: sessions, isLoading: loadingSessions } = useQuery<Session[]>({
-    queryKey: ["/api/classes", classData.id, "sessions"],
-    enabled: !!classData.id,
+    queryKey: [`/api/classes/${classData.id}/sessions`],
+    enabled: !!classData.id && open,
   });
 
   const { data: stats, isLoading: loadingStats } = useQuery<ClassStats>({
-    queryKey: ["/api/classes", classData.id, "stats"],
+    queryKey: [`/api/classes/${classData.id}/stats`],
+    enabled: !!classData.id && open,
   });
 
   const { data: financials, isLoading: loadingFinancials } = useQuery<ClassFinancials>({
-    queryKey: ["/api/classes", classData.id, "financials"],
-    enabled: !!classData.id,
+    queryKey: [`/api/classes/${classData.id}/financials`],
+    enabled: !!classData.id && open,
   });
+
+  const formatSessionDate = (dateTimeStr: string) => {
+    try {
+      const date = parseISO(dateTimeStr);
+      return {
+        fullDate: format(date, 'EEEE, MMMM d, yyyy'),
+        time: format(date, 'h:mm a')
+      };
+    } catch (error) {
+      console.error('Error formatting date:', dateTimeStr, error);
+      return {
+        fullDate: 'Invalid date',
+        time: 'Invalid time'
+      };
+    }
+  };
+
+  const renderSessions = () => {
+    if (loadingSessions) {
+      return (
+        <div className="flex items-center justify-center h-48">
+          <Loader2 className="h-8 w-8 animate-spin" />
+        </div>
+      );
+    }
+
+    if (!sessions || sessions.length === 0) {
+      return (
+        <div className="text-center text-muted-foreground py-8">
+          No sessions scheduled
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-4">
+        {sessions.map((session) => {
+          const { fullDate, time } = formatSessionDate(session.dateTime);
+          return (
+            <div
+              key={session.id}
+              className="flex justify-between items-center p-4 border rounded-lg"
+            >
+              <div>
+                <div className="font-medium">{fullDate}</div>
+                <div className="text-sm text-muted-foreground">
+                  {time} - Duration: {session.plannedDuration} minutes
+                </div>
+              </div>
+              <Badge variant={
+                session.status === 'completed' ? 'default' :
+                session.status === 'scheduled' ? 'secondary' :
+                session.status === 'cancelled' ? 'destructive' :
+                'outline'
+              }>
+                {session.status}
+              </Badge>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
 
   const renderFinancialsOverview = () => {
     if (!financials) return null;
@@ -106,7 +170,7 @@ export default function ClassDetailsDialog({
                     <dt className="font-medium">Teacher</dt>
                     <dd>{classData.teacherId || 'Unassigned'}</dd>
                     <dt className="font-medium">Start Date</dt>
-                    <dd>{new Date(classData.startDate).toLocaleDateString()}</dd>
+                    <dd>{format(parseISO(classData.startDate), 'MMMM d, yyyy')}</dd>
                     <dt className="font-medium">Duration</dt>
                     <dd>{classData.defaultDuration} minutes</dd>
                     <dt className="font-medium">Price</dt>
@@ -139,13 +203,7 @@ export default function ClassDetailsDialog({
                     </dl>
                   </CardContent>
                 </Card>
-              ) : (
-                <Card>
-                  <CardContent className="p-6 text-center text-muted-foreground">
-                    No statistics available
-                  </CardContent>
-                </Card>
-              )}
+              ) : null}
             </TabsContent>
 
             <TabsContent value="sessions">
@@ -154,41 +212,7 @@ export default function ClassDetailsDialog({
                   <CardTitle>Session Schedule</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  {loadingSessions ? (
-                    <div className="flex items-center justify-center h-48">
-                      <Loader2 className="h-8 w-8 animate-spin" />
-                    </div>
-                  ) : sessions && sessions.length > 0 ? (
-                    <div className="space-y-4">
-                      {sessions.map((session) => (
-                        <div
-                          key={session.id}
-                          className="flex justify-between items-center p-4 border rounded-lg"
-                        >
-                          <div>
-                            <div className="font-medium">
-                              {format(new Date(session.dateTime), 'EEEE, MMMM d, yyyy')}
-                            </div>
-                            <div className="text-sm text-muted-foreground">
-                              {format(new Date(session.dateTime), 'h:mm a')} - Duration: {session.plannedDuration} minutes
-                            </div>
-                          </div>
-                          <Badge variant={
-                            session.status === 'completed' ? 'default' :
-                            session.status === 'scheduled' ? 'secondary' :
-                            session.status === 'cancelled' ? 'destructive' :
-                            'outline'
-                          }>
-                            {session.status}
-                          </Badge>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center text-muted-foreground py-8">
-                      No sessions scheduled
-                    </div>
-                  )}
+                  {renderSessions()}
                 </CardContent>
               </Card>
             </TabsContent>
