@@ -695,25 +695,32 @@ async function generateClassSessions(
   classId: string,
   startDate: Date,
   endDate: Date,
-  schedule: { days: string[], time: string }[],
+  schedule: any, // Accept any for now since we'll validate the structure
   defaultDuration: number
 ): Promise<void> {
   try {
-    const sessions = [];
+    const sessionsToCreate = [];
     const currentDate = new Date(startDate);
 
+    // Ensure schedule is an array
+    const scheduleArray = Array.isArray(schedule) ? schedule : [schedule];
+
     while (currentDate <= endDate) {
-      for (const slot of schedule) {
-        const dayName = currentDate.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+      const currentDayName = currentDate.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
 
-        if (slot.days.includes(dayName)) {
-          const [hours, minutes] = slot.time.split(':').map(Number);
-          const sessionDate = new Date(currentDate);
-          sessionDate.setHours(hours, minutes, 0, 0);
+      // Check each schedule slot
+      for (const slot of scheduleArray) {
+        // Ensure days is an array
+        const days = Array.isArray(slot.days) ? slot.days : [slot.days];
 
-          sessions.push({
+        if (days.includes(currentDayName)) {
+          const [hours, minutes] = (slot.time || "00:00").split(':').map(Number);
+          const sessionDateTime = new Date(currentDate);
+          sessionDateTime.setHours(hours, minutes, 0, 0);
+
+          sessionsToCreate.push({
             classId,
-            dateTime: sessionDate.toISOString(),
+            dateTime: sessionDateTime.toISOString(),
             plannedDuration: defaultDuration,
             status: 'scheduled',
           });
@@ -724,8 +731,11 @@ async function generateClassSessions(
       currentDate.setDate(currentDate.getDate() + 1);
     }
 
-    if (sessions.length > 0) {
-      await db.insert(sessions).into(sessions).values(sessions);
+    if (sessionsToCreate.length > 0) {
+      // Insert sessions one by one to avoid table name conflict
+      for (const session of sessionsToCreate) {
+        await db.insert(sessions).values(session);
+      }
     }
   } catch (error) {
     console.error('Error generating sessions:', error);
