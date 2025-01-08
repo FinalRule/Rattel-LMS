@@ -110,83 +110,46 @@ export default function CreateClassDialog({ open, onOpenChange }: CreateClassDia
     },
   });
 
-  // Auth token helper
-  const getAuthHeaders = () => {
-    const token = localStorage.getItem("authToken");
-    return token ? { Authorization: `Bearer ${token}` } : undefined;
-  };
 
-  // Data fetching queries
   const { data: user, isLoading: isUserLoading } = useQuery({
     queryKey: ["/api/user"],
     queryFn: async () => {
-      const headers = getAuthHeaders();
-      if (!headers) return null;
-
-      const response = await fetch("/api/user", { headers });
+      const response = await fetch("/api/user", {
+        credentials: "include",  // Important: include credentials for session cookie
+      });
       if (!response.ok) {
         if (response.status === 401) {
-          localStorage.removeItem("authToken");
           return null;
         }
         throw new Error("Failed to fetch user");
       }
-
       return response.json();
     },
   });
 
   const { data: teachers = [], isLoading: isTeachersLoading } = useQuery<SelectTeacher[]>({
     queryKey: ["/api/teachers"],
-    queryFn: async () => {
-      const headers = getAuthHeaders();
-      if (!headers) throw new Error("Authentication required");
-
-      const response = await fetch("/api/teachers", { headers });
-      if (!response.ok) throw new Error("Failed to fetch teachers");
-      return response.json();
-    },
     enabled: !!user,
   });
 
   const { data: students = [], isLoading: isStudentsLoading } = useQuery<SelectStudent[]>({
     queryKey: ["/api/students"],
-    queryFn: async () => {
-      const headers = getAuthHeaders();
-      if (!headers) throw new Error("Authentication required");
-
-      const response = await fetch("/api/students", { headers });
-      if (!response.ok) throw new Error("Failed to fetch students");
-      return response.json();
-    },
     enabled: !!user,
   });
 
   const { data: pricePlans = [], isLoading: isPricePlansLoading } = useQuery<SelectPricePlan[]>({
     queryKey: ["/api/price-plans"],
-    queryFn: async () => {
-      const headers = getAuthHeaders();
-      if (!headers) throw new Error("Authentication required");
-
-      const response = await fetch("/api/price-plans", { headers });
-      if (!response.ok) throw new Error("Failed to fetch price plans");
-      return response.json();
-    },
     enabled: !!user,
   });
 
-  // Create class mutation
   const createClassMutation = useMutation({
     mutationFn: async (data: CreateClassFormData) => {
-      const headers = getAuthHeaders();
-      if (!headers) throw new Error("Authentication required");
-
       const response = await fetch("/api/classes", {
         method: "POST",
         headers: {
-          ...headers,
           "Content-Type": "application/json",
         },
+        credentials: "include",  // Important: include credentials for session cookie
         body: JSON.stringify(data),
       });
 
@@ -219,7 +182,6 @@ export default function CreateClassDialog({ open, onOpenChange }: CreateClassDia
     createClassMutation.mutate(data);
   };
 
-  // Loading states
   if (isUserLoading || isTeachersLoading || isPricePlansLoading || isStudentsLoading) {
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
@@ -232,7 +194,6 @@ export default function CreateClassDialog({ open, onOpenChange }: CreateClassDia
     );
   }
 
-  // Auth check
   if (!user) {
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
@@ -260,7 +221,6 @@ export default function CreateClassDialog({ open, onOpenChange }: CreateClassDia
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            {/* Basic Information */}
             <div className="space-y-4">
               <FormField
                 control={form.control}
@@ -328,7 +288,6 @@ export default function CreateClassDialog({ open, onOpenChange }: CreateClassDia
                 />
               </div>
 
-              {/* Student Selection */}
               <FormField
                 control={form.control}
                 name="selectedStudentIds"
@@ -405,7 +364,6 @@ export default function CreateClassDialog({ open, onOpenChange }: CreateClassDia
               />
             </div>
 
-            {/* Schedule and Duration */}
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <FormField
@@ -420,7 +378,6 @@ export default function CreateClassDialog({ open, onOpenChange }: CreateClassDia
                           {...field}
                           onChange={(e) => {
                             field.onChange(e.target.value);
-                            // Set end date to at least a week after start date
                             const startDate = new Date(e.target.value);
                             const minEndDate = new Date(startDate.getTime() + 7 * 24 * 60 * 60 * 1000);
                             const currentEndDate = new Date(form.getValues("endDate"));
@@ -454,7 +411,6 @@ export default function CreateClassDialog({ open, onOpenChange }: CreateClassDia
                 />
               </div>
 
-              {/* Weekly Schedule */}
               <div className="space-y-4">
                 <FormLabel>Weekly Schedule</FormLabel>
                 <div className="grid grid-cols-2 gap-2">
@@ -469,7 +425,6 @@ export default function CreateClassDialog({ open, onOpenChange }: CreateClassDia
                             : current.filter(d => d !== day.value);
                           form.setValue("schedule.days", newDays);
 
-                          // Update times array
                           const currentTimes = form.getValues("schedule.times");
                           if (checked) {
                             form.setValue("schedule.times", [
@@ -522,7 +477,6 @@ export default function CreateClassDialog({ open, onOpenChange }: CreateClassDia
               </div>
             </div>
 
-            {/* Pricing and Settings */}
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <FormField
