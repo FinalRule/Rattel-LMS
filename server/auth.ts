@@ -5,10 +5,20 @@ import jwt from "jsonwebtoken";
 import { users } from "@db/schema";
 import { db } from "@db";
 import { eq } from "drizzle-orm";
+import { z } from "zod";
 
 const scryptAsync = promisify(scrypt);
 export const JWT_SECRET = process.env.REPL_ID || "your-jwt-secret-key";
 const TOKEN_EXPIRATION = "24h";
+
+// Create a schema for registration validation
+const registerSchema = z.object({
+  email: z.string().email("Invalid email format"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
+  fullName: z.string().min(1, "Full name is required"),
+  role: z.enum(["admin", "teacher", "student"]).default("student"),
+  timezone: z.string().default("UTC"),
+});
 
 export const crypto = {
   hash: async (password: string) => {
@@ -90,11 +100,20 @@ export function setupAuth(app: Express) {
   // Register route with validation
   app.post("/api/register", async (req, res) => {
     try {
-      const { email, password, fullName, role = "student" } = req.body;
+      // Validate input using zod schema
+      const result = registerSchema.safeParse(req.body);
 
-      if (!email || !password || !fullName) {
-        return res.status(400).json({ error: "Email, password, and full name are required" });
+      if (!result.success) {
+        return res.status(400).json({ 
+          error: "Validation failed",
+          details: result.error.issues.map(issue => ({
+            field: issue.path.join('.'),
+            message: issue.message
+          }))
+        });
       }
+
+      const { email, password, fullName, role, timezone } = result.data;
 
       // Check if user already exists
       const [existingUser] = await db
@@ -118,7 +137,7 @@ export function setupAuth(app: Express) {
           password: hashedPassword,
           fullName,
           role,
-          timezone: "UTC",
+          timezone,
           isActive: true,
         })
         .returning();
@@ -142,17 +161,24 @@ export function setupAuth(app: Express) {
         token,
       });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      console.error("Registration error:", error);
+      res.status(500).json({ error: "Registration failed", details: error.message });
     }
   });
 
-  // Login route
+  // Login route with improved error handling
   app.post("/api/login", async (req, res) => {
     try {
       const { email, password } = req.body;
 
       if (!email || !password) {
-        return res.status(400).json({ error: "Email and password are required" });
+        return res.status(400).json({ 
+          error: "Validation failed",
+          details: [{ 
+            field: !email ? 'email' : 'password',
+            message: 'This field is required'
+          }]
+        });
       }
 
       // Find user by email
@@ -163,13 +189,19 @@ export function setupAuth(app: Express) {
         .limit(1);
 
       if (!user) {
-        return res.status(400).json({ error: "Incorrect email." });
+        return res.status(400).json({ 
+          error: "Authentication failed",
+          details: [{ field: 'email', message: 'No user found with this email' }]
+        });
       }
 
       // Verify password
       const isMatch = await crypto.compare(password, user.password);
       if (!isMatch) {
-        return res.status(400).json({ error: "Incorrect password." });
+        return res.status(400).json({ 
+          error: "Authentication failed",
+          details: [{ field: 'password', message: 'Incorrect password' }]
+        });
       }
 
       // Generate JWT token
@@ -191,7 +223,8 @@ export function setupAuth(app: Express) {
         token,
       });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      console.error("Login error:", error);
+      res.status(500).json({ error: "Login failed", details: error.message });
     }
   });
 
