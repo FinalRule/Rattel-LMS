@@ -695,40 +695,52 @@ async function generateClassSessions(
   classId: string,
   startDate: Date,
   endDate: Date,
-  schedule: any, // Accept any for now since we'll validate the structure
+  schedule: any,
   defaultDuration: number
 ): Promise<void> {
   try {
     const sessionsToCreate = [];
     const currentDate = new Date(startDate);
 
+    // Map day names to numbers (Sunday = 0, Monday = 1, etc.)
+    const dayNameToNumber: { [key: string]: number } = {
+      'sunday': 0, 'monday': 1, 'tuesday': 2, 'wednesday': 3,
+      'thursday': 4, 'friday': 5, 'saturday': 6
+    };
+
     // Ensure schedule is an array of time slots
     const scheduleArray = Array.isArray(schedule) ? schedule : [schedule];
 
+    // Set the starting date to midnight
+    currentDate.setHours(0, 0, 0, 0);
+
     while (currentDate <= endDate) {
       const currentDayName = currentDate.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+      const currentDayNumber = currentDate.getDay();
 
       // Check each schedule slot
       for (const slot of scheduleArray) {
-        // Ensure days is an array
+        // Convert days to array if it's a string
         const days = Array.isArray(slot.days) ? slot.days : [slot.days];
 
+        // Check if current day matches any of the scheduled days
         if (days.includes(currentDayName)) {
           const [hours, minutes] = (slot.time || "00:00").split(':').map(Number);
+
+          // Create session datetime
           const sessionDateTime = new Date(currentDate);
           sessionDateTime.setHours(hours, minutes, 0, 0);
 
-          // Create session with start and end time
-          const sessionEndTime = new Date(sessionDateTime);
-          sessionEndTime.setMinutes(sessionEndTime.getMinutes() + defaultDuration);
-
-          sessionsToCreate.push({
-            classId,
-            dateTime: sessionDateTime.toISOString(),
-            plannedDuration: defaultDuration,
-            status: 'scheduled',
-            actualDuration: defaultDuration, // Set the actual duration same as planned initially
-          });
+          // Only add future sessions
+          if (sessionDateTime >= new Date()) {
+            sessionsToCreate.push({
+              classId,
+              dateTime: sessionDateTime.toISOString(),
+              plannedDuration: defaultDuration,
+              status: 'scheduled',
+              actualDuration: defaultDuration, // Set the actual duration same as planned initially
+            });
+          }
         }
       }
 

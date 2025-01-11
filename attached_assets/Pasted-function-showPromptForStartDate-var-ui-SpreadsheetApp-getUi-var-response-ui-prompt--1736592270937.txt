@@ -1,0 +1,137 @@
+function showPromptForStartDate() {
+  var ui = SpreadsheetApp.getUi();
+  var response = ui.prompt('Enter the starting date in the format dd/MM/yyyy or leave blank to start from today:', ui.ButtonSet.OK_CANCEL);
+  
+  if (response.getSelectedButton() == ui.Button.OK) {
+    var startDateStr = response.getResponseText();
+    
+    if (startDateStr) {
+      if (isValidDate(startDateStr)) {
+        var parts = startDateStr.split('/');
+        var startDate = new Date(parts[2], parts[1] - 1, parts[0]);
+        insertRowsWithDates(startDate);
+      } else {
+        ui.alert('Invalid date format. Please use dd/MM/yyyy.');
+      }
+    } else {
+      insertRowsWithDates(new Date());
+    }
+  }
+}
+
+function insertRowsWithDates(startDate) {
+  if (!startDate) {
+    SpreadsheetApp.getUi().alert('Invalid starting date.');
+    return;
+  }
+
+  var sheet = SpreadsheetApp.getActiveSheet();
+  
+  // Get the weekdays from the range B4:H4
+  var weekdayRange = sheet.getRange("B4:H4").getValues()[0];
+  var weekdays = [];
+
+  for (var i = 0; i < weekdayRange.length; i++) {
+    if (weekdayRange[i] !== "") {
+      weekdays.push(i + 1); // Push the index + 1 as the weekday number (B4 is Sunday = 1, ..., H4 is Saturday = 7)
+    }
+  }
+
+  // Get the number of weeks from cell J3
+  var numWeeks = sheet.getRange("J3").getValue();
+  
+  // Validate input
+  if (numWeeks <= 0) {
+    throw new Error("Invalid input: Number of weeks must be positive.");
+  }
+
+  if (weekdays.length === 0) {
+    throw new Error("No weekdays selected.");
+  }
+  
+  // Set the starting date to midnight
+  startDate.setHours(0, 0, 0, 0);
+  
+  // Arabic weekdays
+  var arabicWeekdays = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+  
+  // Insert rows and populate dates with serial numbers, weekdays, checkboxes, and dropdowns
+  var allData = [];
+  var serialNumber = 1;
+  
+  for (var w = 0; w < numWeeks; w++) {
+    var weekData = [];
+    
+    for (var i = 0; i < weekdays.length; i++) {
+      var weekdayNumber = weekdays[i]; // Extract weekday number from array
+      var dateForWeek = new Date(startDate);
+      
+      // Get the first date for the specified weekday
+      var startingDate = getUpcomingWeekdayDate(dateForWeek, weekdayNumber);
+      
+      // Adjust the date for the subsequent weeks
+      startingDate.setDate(startingDate.getDate() + (w * 7));
+      
+      // Format the date to "day/month/year"
+      var formattedDate = Utilities.formatDate(startingDate, Session.getScriptTimeZone(), "dd/MM/yyyy");
+      
+      // Get the weekday in Arabic
+      var arabicWeekday = arabicWeekdays[(weekdayNumber - 1) % 7];
+      
+      weekData.push([serialNumber, arabicWeekday, formattedDate, '', '', '']); // Insert serial number, weekday, formatted date, and placeholders for checkboxes and dropdown
+      
+      serialNumber++;
+    }
+    
+    // Sort weekData by date
+    weekData.sort(function(a, b) {
+      var dateA = parseDate(a[2]);
+      var dateB = parseDate(b[2]);
+      return dateA - dateB;
+    });
+    
+    allData = allData.concat(weekData);
+  }
+  
+  var insertBefore = sheet.getLastRow() + 1;
+  var newRows = allData.length;
+  
+  sheet.insertRowsAfter(insertBefore - 1, newRows); // Insert rows before the last row
+  sheet.getRange(insertBefore, 1, newRows, 6).setValues(allData); // Set the serial numbers, weekdays, dates, and placeholders
+  sheet.getRange(insertBefore, 4, newRows, 1).insertCheckboxes(); // Insert checkboxes in the fourth column
+  sheet.getRange(insertBefore, 5, newRows, 1).insertCheckboxes(); // Insert checkboxes in the fifth column
+  
+  // Define the options for the dropdown list
+  var dropdownOptions = ['120', '90', '60', '45', '30', '15', 'غياب', 'أذن'];
+  var rule = SpreadsheetApp.newDataValidation().requireValueInList(dropdownOptions).build();
+  
+  // Apply the dropdown to the sixth column of the new rows
+  sheet.getRange(insertBefore, 6, newRows, 1).setDataValidation(rule);
+}
+
+function getUpcomingWeekdayDate(date, weekdayNumber) {
+  // Adjust date to the specified weekday (Sunday = 1, ..., Saturday = 7)
+  var adjustedDate = new Date(date.getTime());
+  var currentDay = (adjustedDate.getDay() + 1) % 7 || 7; // Convert Sunday = 0 to Sunday = 7
+  
+  // Calculate difference
+  var dayDifference = (weekdayNumber - currentDay + 7) % 7;
+  
+  if (dayDifference === 0 && adjustedDate.getDay() !== weekdayNumber - 1) {
+    dayDifference = 7;
+  }
+
+  adjustedDate.setDate(adjustedDate.getDate() + dayDifference);
+  return adjustedDate;
+}
+
+function isValidDate(dateStr) {
+  // Check if the date string is in the format "dd/MM/yyyy"
+  var regex = /^\d{2}\/\d{2}\/\d{4}$/;
+  return regex.test(dateStr);
+}
+
+function parseDate(dateStr) {
+  var parts = dateStr.split('/');
+  return new Date(parts[2], parts[1] - 1, parts[0]);
+}
