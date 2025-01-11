@@ -199,7 +199,7 @@ export function registerRoutes(app: Express): Server {
 
         // Generate sessions for the class
         await generateClassSessions(
-          createdClass.id.toString(), //changed to string
+          createdClass.id.toString(),
           new Date(startDate),
           new Date(endDate),
           schedule,
