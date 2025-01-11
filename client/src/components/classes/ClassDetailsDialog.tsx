@@ -24,6 +24,30 @@ interface Session {
   dateTime: string;
   status: string;
   plannedDuration: number;
+  actualDuration?: number;
+}
+
+interface ClassStats {
+  totalSessions: number;
+  completedSessions: number;
+  averageAttendance: number;
+  studentProgress?: Array<{
+    studentId: string;
+    studentName: string;
+    attendanceRate: number;
+    averageScore: number;
+  }>;
+}
+
+interface ClassFinancials {
+  totalRevenue: number;
+  teacherPayouts: number;
+  profitMargin: number;
+  monthlyBreakdown?: Array<{
+    month: string;
+    revenue: number;
+    expenses: number;
+  }>;
 }
 
 export default function ClassDetailsDialog({
@@ -50,15 +74,20 @@ export default function ClassDetailsDialog({
   const formatSessionDate = (dateTimeStr: string) => {
     try {
       const date = parseISO(dateTimeStr);
+      const endTime = new Date(date);
+      endTime.setMinutes(endTime.getMinutes() + (classData?.defaultDuration || 60));
+
       return {
         fullDate: format(date, 'EEEE, MMMM d, yyyy'),
-        time: format(date, 'h:mm a')
+        startTime: format(date, 'h:mm a'),
+        endTime: format(endTime, 'h:mm a')
       };
     } catch (error) {
       console.error('Error formatting date:', dateTimeStr, error);
       return {
         fullDate: 'Invalid date',
-        time: 'Invalid time'
+        startTime: 'Invalid time',
+        endTime: 'Invalid time'
       };
     }
   };
@@ -83,16 +112,16 @@ export default function ClassDetailsDialog({
     return (
       <div className="space-y-4">
         {sessions.map((session) => {
-          const { fullDate, time } = formatSessionDate(session.dateTime);
+          const { fullDate, startTime, endTime } = formatSessionDate(session.dateTime);
           return (
             <div
               key={session.id}
-              className="flex justify-between items-center p-4 border rounded-lg"
+              className="flex justify-between items-center p-4 border rounded-lg hover:bg-accent/5 transition-colors"
             >
               <div>
                 <div className="font-medium">{fullDate}</div>
                 <div className="text-sm text-muted-foreground">
-                  {time} - Duration: {session.plannedDuration} minutes
+                  {startTime} to {endTime}
                 </div>
               </div>
               <Badge variant={
@@ -299,27 +328,4 @@ export default function ClassDetailsDialog({
       </DialogContent>
     </Dialog>
   );
-}
-
-interface ClassStats {
-  totalSessions: number;
-  completedSessions: number;
-  averageAttendance: number;
-  studentProgress?: Array<{
-    studentId: string;
-    studentName: string;
-    attendanceRate: number;
-    averageScore: number;
-  }>;
-}
-
-interface ClassFinancials {
-  totalRevenue: number;
-  teacherPayouts: number;
-  profitMargin: number;
-  monthlyBreakdown?: Array<{
-    month: string;
-    revenue: number;
-    expenses: number;
-  }>;
 }

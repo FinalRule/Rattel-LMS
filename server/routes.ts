@@ -702,7 +702,7 @@ async function generateClassSessions(
     const sessionsToCreate = [];
     const currentDate = new Date(startDate);
 
-    // Ensure schedule is an array
+    // Ensure schedule is an array of time slots
     const scheduleArray = Array.isArray(schedule) ? schedule : [schedule];
 
     while (currentDate <= endDate) {
@@ -718,11 +718,16 @@ async function generateClassSessions(
           const sessionDateTime = new Date(currentDate);
           sessionDateTime.setHours(hours, minutes, 0, 0);
 
+          // Create session with start and end time
+          const sessionEndTime = new Date(sessionDateTime);
+          sessionEndTime.setMinutes(sessionEndTime.getMinutes() + defaultDuration);
+
           sessionsToCreate.push({
             classId,
             dateTime: sessionDateTime.toISOString(),
             plannedDuration: defaultDuration,
             status: 'scheduled',
+            actualDuration: defaultDuration, // Set the actual duration same as planned initially
           });
         }
       }
@@ -732,9 +737,11 @@ async function generateClassSessions(
     }
 
     if (sessionsToCreate.length > 0) {
-      // Insert sessions one by one to avoid table name conflict
-      for (const session of sessionsToCreate) {
-        await db.insert(sessions).values(session);
+      // Insert sessions in batches to improve performance
+      const batchSize = 50;
+      for (let i = 0; i < sessionsToCreate.length; i += batchSize) {
+        const batch = sessionsToCreate.slice(i, i + batchSize);
+        await db.insert(sessions).values(batch);
       }
     }
   } catch (error) {
