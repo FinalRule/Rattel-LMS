@@ -675,9 +675,9 @@ export function registerRoutes(app: Express): Server {
         outstandingBalance: outstandingBalance[0]?.amount || 0,
         lastPayment: lastPayment
           ? {
-              amount: lastPayment.amount,
-              date: lastPayment.completedAt,
-            }
+            amount: lastPayment.amount,
+            date: lastPayment.completedAt,
+          }
           : null,
       });
     } catch (error: any) {
